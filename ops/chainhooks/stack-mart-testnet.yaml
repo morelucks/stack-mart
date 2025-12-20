@@ -1,0 +1,39 @@
+name: stack-mart-marketplace-events-testnet
+chain: stacks
+network: testnet
+
+# Monitor StackMart contract events on testnet
+filters:
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "create-listing"
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "create-listing-with-nft"
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "buy-listing"
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "buy-listing-escrow"
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "attest-delivery"
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "confirm-receipt"
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "release-escrow"
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "create-dispute"
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "resolve-dispute"
+
+delivery:
+  url: https://your-service.example.com/api/chainhooks/stack-mart
+  secret: "<SHARED_SECRET>"
+  authorization_header: "Bearer <YOUR_API_KEY>"
+

@@ -1,0 +1,53 @@
+name: stack-mart-marketplace-events
+chain: stacks
+network: mainnet
+
+# Monitor StackMart contract events on mainnet
+# Watches for key marketplace events: listing creation, purchases, escrow updates, disputes
+filters:
+  # Listing creation events
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "create-listing"
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "create-listing-with-nft"
+  
+  # Purchase events
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "buy-listing"
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "buy-listing-escrow"
+  
+  # Escrow events
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "attest-delivery"
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "confirm-receipt"
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "release-escrow"
+  
+  # Dispute events
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "create-dispute"
+  - contract_call:
+      contract_identifier: "SPATASA6SYGCVB67NJ1XQ72BB0Q3EHGNGE9JQBQT.stack-mart"
+      function_name: "resolve-dispute"
+
+delivery:
+  # Webhook endpoint to receive chainhook events
+  # Update this with your deployed webhook service URL
+  url: https://your-service.example.com/api/chainhooks/stack-mart
+  # Optional shared secret for request verification
+  secret: "<SHARED_SECRET>"
+  authorization_header: "Bearer <YOUR_API_KEY>"
+
+# Optional: start from a specific block height
+# start_block: 0
+

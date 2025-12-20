@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { WalletButton } from './components/WalletButton';
 import { CreateListing } from './components/CreateListing';
 import { ListingCard } from './components/ListingCard';
+import { ChainhookEvents } from './components/ChainhookEvents';
 import { useStacks } from './hooks/useStacks';
 import './App.css';
 
@@ -56,6 +57,10 @@ function App() {
               />
             ))}
           </div>
+        </section>
+
+        <section style={{ marginTop: '40px' }}>
+          <ChainhookEvents />
         </section>
       </main>
     </div>
