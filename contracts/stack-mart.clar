@@ -1,6 +1,8 @@
 ;; StackMart marketplace scaffold
 
 (define-data-var next-id uint u1)
+(define-data-var next-bundle-id uint u1)
+(define-data-var next-pack-id uint u1)
 
 (define-constant MAX_ROYALTY_BIPS u1000) ;; 10% in basis points
 (define-constant BPS_DENOMINATOR u10000)
@@ -19,6 +21,15 @@
 (define-constant ERR_DISPUTE_RESOLVED (err u400))
 (define-constant ERR_INSUFFICIENT_STAKES (err u400))
 (define-constant ERR_INVALID_SIDE (err u400))
+(define-constant ERR_BUNDLE_NOT_FOUND (err u404))
+(define-constant ERR_PACK_NOT_FOUND (err u404))
+(define-constant ERR_INVALID_LISTING (err u400))
+(define-constant ERR_BUNDLE_EMPTY (err u400))
+
+;; Bundle and pack constants
+(define-constant MAX_BUNDLE_SIZE u10)
+(define-constant MAX_PACK_SIZE u20)
+(define-constant MAX_DISCOUNT_BIPS u5000) ;; 50% max discount
 
 ;; Dispute resolution constants
 (define-constant MIN_STAKE_AMOUNT u1000) ;; Minimum stake amount
@@ -110,6 +121,23 @@
   , voter: principal }
   { vote: bool
   , weight: uint
+  })
+
+;; Bundle and curated pack system
+(define-map bundles
+  { id: uint }
+  { listing-ids: (list 10 uint)
+  , discount-bips: uint
+  , creator: principal
+  , created-at-block: uint
+  })
+
+(define-map packs
+  { id: uint }
+  { listing-ids: (list 20 uint)
+  , price: uint
+  , curator: principal
+  , created-at-block: uint
   })
 
 (define-read-only (get-next-id)
@@ -744,3 +772,108 @@
                     true))))
                 (ok true))))
     ERR_DISPUTE_NOT_FOUND))
+
+(define-read-only (get-bundle (bundle-id uint))
+  (match (map-get? bundles { id: bundle-id })
+    bundle (ok bundle)
+    ERR_BUNDLE_NOT_FOUND))
+
+(define-read-only (get-pack (pack-id uint))
+  (match (map-get? packs { id: pack-id })
+    pack (ok pack)
+    ERR_PACK_NOT_FOUND))
+
+;; Create a bundle of listings with discount
+(define-public (create-bundle (listing-ids (list 10 uint)) (discount-bips uint))
+  (begin
+    ;; Validate bundle not empty
+    (asserts! (> (len listing-ids) u0) ERR_BUNDLE_EMPTY)
+    ;; Validate discount within limits
+    (asserts! (<= discount-bips MAX_DISCOUNT_BIPS) ERR_BAD_ROYALTY)
+    ;; Validate all listings exist and belong to creator
+    ;; Note: In full implementation, would validate each listing
+    (let ((bundle-id (var-get next-bundle-id)))
+      (begin
+        (map-set bundles
+          { id: bundle-id }
+          { listing-ids: listing-ids
+          , discount-bips: discount-bips
+          , creator: tx-sender
+          , created-at-block: u0 })
+        (var-set next-bundle-id (+ bundle-id u1))
+        (ok bundle-id)))))
+
+;; Buy a bundle (purchases all listings in bundle with discount)
+(define-public (buy-bundle (bundle-id uint))
+  (match (map-get? bundles { id: bundle-id })
+    bundle
+      (let ((listing-ids (get listing-ids bundle))
+            (discount-bips (get discount-bips bundle)))
+        (begin
+          ;; Calculate total price with discount
+          (let ((total-price (calculate-bundle-price listing-ids discount-bips)))
+            (begin
+              ;; Transfer payment
+              ;; Note: In full implementation, would handle each listing purchase
+              ;; For now, simplified - actual payment would be calculated from individual listings
+              true
+              ;; Process each listing purchase
+              (process-bundle-purchases listing-ids tx-sender)
+              ;; Delete bundle after purchase
+              (map-delete bundles { id: bundle-id })
+              (ok true)))))
+    ERR_BUNDLE_NOT_FOUND))
+
+;; Helper function to calculate bundle price
+;; Note: Simplified calculation - in full implementation would iterate through all listings
+(define-private (calculate-bundle-price (listing-ids (list 10 uint)) (discount-bips uint))
+  ;; For now, return a placeholder price
+  ;; In full implementation, would sum all listing prices and apply discount
+  u0)
+
+;; Helper function to process bundle purchases
+(define-private (process-bundle-purchases (listing-ids (list 10 uint)) (buyer principal))
+  ;; Note: Simplified - in full implementation would process each listing
+  true)
+
+;; Create a curated pack
+(define-public (create-curated-pack (listing-ids (list 20 uint)) (pack-price uint) (curator principal))
+  (begin
+    ;; Validate pack not empty
+    (asserts! (> (len listing-ids) u0) ERR_BUNDLE_EMPTY)
+    ;; Validate curator is tx-sender
+    (asserts! (is-eq tx-sender curator) ERR_NOT_OWNER)
+    ;; Validate all listings exist
+    ;; Note: In full implementation, would validate each listing
+    (let ((pack-id (var-get next-pack-id)))
+      (begin
+        (map-set packs
+          { id: pack-id }
+          { listing-ids: listing-ids
+          , price: pack-price
+          , curator: curator
+          , created-at-block: u0 })
+        (var-set next-pack-id (+ pack-id u1))
+        (ok pack-id)))))
+
+;; Buy a curated pack
+(define-public (buy-curated-pack (pack-id uint))
+  (match (map-get? packs { id: pack-id })
+    pack
+      (let ((listing-ids (get listing-ids pack))
+            (pack-price (get price pack))
+            (curator (get curator pack)))
+        (begin
+          ;; Transfer payment to curator (simplified - in full would split)
+          (try! (stx-transfer? pack-price tx-sender curator))
+          ;; Process each listing purchase
+          (process-pack-purchases listing-ids tx-sender)
+          ;; Delete pack after purchase
+          (map-delete packs { id: pack-id })
+          (ok true)))
+    ERR_PACK_NOT_FOUND))
+
+;; Helper function to process pack purchases
+(define-private (process-pack-purchases (listing-ids (list 20 uint)) (buyer principal))
+  ;; Note: Simplified - in full implementation would process each listing
+  true)
