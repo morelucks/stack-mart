@@ -1,5 +1,19 @@
 ;; StackMart marketplace scaffold
 
+;; SIP-009 NFT Standard Trait
+;; Standard interface for NFT contracts on Stacks
+(define-trait sip009-nft-trait
+  (
+    ;; Get the owner of an NFT token
+    ;; Returns (optional principal) if token exists, or error code
+    (get-owner (uint) (response (optional principal) uint))
+    
+    ;; Transfer an NFT from sender to recipient
+    ;; Returns bool (true if successful) or error code
+    (transfer (uint principal principal) (response bool uint))
+  )
+)
+
 (define-data-var next-id uint u1)
 (define-data-var next-bundle-id uint u1)
 (define-data-var next-pack-id uint u1)
@@ -172,11 +186,18 @@
   (ok (default-to DEFAULT_REPUTATION (map-get? reputation { principal: buyer }))))
 
 ;; Verify NFT ownership using SIP-009 standard (get-owner function)
-;; Note: NFT verification temporarily simplified - will be enhanced with proper trait support
-(define-private (verify-nft-ownership (nft-contract principal) (token-id uint) (owner principal))
-  ;; TODO: Implement proper NFT ownership verification with SIP-009 trait
-  ;; For now, return true to allow listing creation (should be replaced with actual verification)
-  true)
+;; Note: In Clarity, contract-call? with variable principals works at runtime
+;; The trait is defined for documentation and type checking purposes
+(define-private (verify-nft-ownership (nft-contract-addr principal) (token-id uint) (owner principal))
+  (match (contract-call? nft-contract-addr get-owner token-id)
+    (ok nft-owner-opt)
+      (match nft-owner-opt
+        (some nft-owner)
+          (is-eq nft-owner owner)
+        none
+          false)
+    (err error-code)
+      false))
 
 ;; Legacy function - kept for backward compatibility (no NFT)
 (define-public (create-listing (price uint) (royalty-bips uint) (royalty-recipient principal))
@@ -237,13 +258,15 @@
         (begin
           ;; Transfer NFT if present (SIP-009 transfer function)
           ;; Note: Seller must authorize this contract to transfer on their behalf
-          ;; TODO: Implement proper NFT transfer with SIP-009 trait support
           (match nft-contract-opt
             nft-contract-principal
               (match token-id-opt
                 token-id-value
-                  ;; NFT transfer temporarily disabled - requires trait implementation
-                  true
+                  (match (contract-call? nft-contract-principal transfer token-id-value seller tx-sender)
+                    (ok transfer-success)
+                      (asserts! transfer-success ERR_NFT_TRANSFER_FAILED)
+                    (err error-code)
+                      (err error-code))
                 true)
             true)
           ;; Transfer payments
@@ -297,13 +320,16 @@
                   (token-id-opt (get token-id listing))
                   (buyer (get buyer escrow)))
               (begin
-                ;; TODO: Implement proper NFT transfer with SIP-009 trait support
+                ;; Transfer NFT to buyer when seller attests delivery
                 (match nft-contract-opt
                   nft-contract-principal
                     (match token-id-opt
                       token-id-value
-                        ;; NFT transfer temporarily disabled - requires trait implementation
-                        true
+                        (match (contract-call? nft-contract-principal transfer token-id-value tx-sender buyer)
+                          (ok transfer-success)
+                            (asserts! transfer-success ERR_NFT_TRANSFER_FAILED)
+                          (err error-code)
+                            (err error-code))
                       true)
                   true)
                 ;; Create delivery attestation
