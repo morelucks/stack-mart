@@ -74,64 +74,79 @@ export const CreateListing = () => {
   };
 
   if (!isConnected) {
-    return <p>Please connect your wallet to create a listing</p>;
+    return (
+      <div className="alert alert-info">
+        <strong>Wallet Required:</strong> Please connect your wallet to create a listing.
+      </div>
+    );
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ maxWidth: '500px', margin: '20px' }}>
-      <h2>Create New Listing</h2>
-      <div style={{ marginBottom: '15px' }}>
-        <label>
-          Price (STX):
-          <input
-            type="number"
-            step="0.000001"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            required
-            style={{ width: '100%', padding: '8px', marginTop: '5px' }}
-          />
+    <form onSubmit={handleSubmit}>
+      <div className="form-group">
+        <label className="form-label">
+          Price (STX)
         </label>
+        <input
+          className="form-input"
+          type="number"
+          step="0.000001"
+          min="0"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          required
+          placeholder="0.00"
+        />
+        <div className="form-help">Enter the price in STX (e.g., 1.5 for 1.5 STX)</div>
       </div>
-      <div style={{ marginBottom: '15px' }}>
-        <label>
-          Royalty (basis points, max 1000 = 10%):
-          <input
-            type="number"
-            min="0"
-            max="1000"
-            value={royaltyBips}
-            onChange={(e) => setRoyaltyBips(e.target.value)}
-            required
-            style={{ width: '100%', padding: '8px', marginTop: '5px' }}
-          />
+      
+      <div className="form-group">
+        <label className="form-label">
+          Royalty (basis points)
         </label>
+        <input
+          className="form-input"
+          type="number"
+          min="0"
+          max="1000"
+          value={royaltyBips}
+          onChange={(e) => setRoyaltyBips(e.target.value)}
+          required
+          placeholder="500"
+        />
+        <div className="form-help">Max 1000 (10%). Example: 500 = 5%</div>
       </div>
-      <div style={{ marginBottom: '15px' }}>
-        <label>
-          Royalty Recipient (STX address):
-          <input
-            type="text"
-            value={royaltyRecipient}
-            onChange={(e) => setRoyaltyRecipient(e.target.value)}
-            required
-            style={{ width: '100%', padding: '8px', marginTop: '5px' }}
-          />
+      
+      <div className="form-group">
+        <label className="form-label">
+          Royalty Recipient (STX address)
         </label>
+        <input
+          className="form-input"
+          type="text"
+          value={royaltyRecipient}
+          onChange={(e) => setRoyaltyRecipient(e.target.value)}
+          required
+          placeholder="SP..."
+          style={{ fontFamily: 'monospace' }}
+        />
+        <div className="form-help">Stacks address that will receive royalty payments</div>
       </div>
+      
       <button
         type="submit"
+        className="btn btn-success btn-lg"
         disabled={isSubmitting}
-        style={{
-          padding: '10px 20px',
-          backgroundColor: '#28a745',
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: isSubmitting ? 'not-allowed' : 'pointer',
-        }}
+        style={{ width: '100%', marginTop: '1rem' }}
       >
-        {isSubmitting ? 'Creating...' : 'Create Listing'}
+        {isSubmitting ? (
+          <>
+            <span className="loading"></span>
+            Creating Listing...
+          </>
+        ) : (
+          '✨ Create Listing'
+        )}
       </button>
     </form>
   );
