@@ -1,3 +1,5 @@
+import { formatAddress, formatSTX } from '../utils/validation';
+
 interface Listing {
   id: number;
   seller: string;
@@ -21,15 +23,10 @@ interface ListingCardProps {
 }
 
 export const ListingCard = ({ listing, onBuy, onViewDetails }: ListingCardProps) => {
-  const priceInSTX = (listing.price || 0) / 1000000; // Convert microSTX to STX
+  const priceInSTX = formatSTX(listing.price || 0);
   const royaltyBips = listing.royaltyBips || listing['royalty-bips'] || 0;
   const royaltyPercent = royaltyBips / 100;
   const hasNFT = !!(listing.nftContract || listing['nft-contract']);
-
-  const formatAddress = (address: string) => {
-    if (!address) return 'Unknown';
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
 
   return (
     <div className="card" style={{ maxWidth: '100%' }}>
@@ -52,7 +49,7 @@ export const ListingCard = ({ listing, onBuy, onViewDetails }: ListingCardProps)
 
         <div style={{ marginBottom: '0.75rem' }}>
           <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)' }}>
-            {priceInSTX.toFixed(2)} STX
+            {priceInSTX} STX
           </div>
         </div>
 
