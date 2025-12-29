@@ -122,10 +122,12 @@ import { useStacks } from './hooks/useStacks';
 
 ### Documentation
 
-For detailed integration guides, see:
+For detailed integration guides and examples, see:
 - [Complete Wallet Integration Guide](./frontend/WALLET_INTEGRATION_GUIDE.md)
 - [AppKit Integration Guide](./frontend/APPKIT_INTEGRATION.md)
 - [WalletKit Integration Guide](./frontend/WALLETKIT_INTEGRATION.md)
+- [Wallet Usage Examples](./WALLET_USAGE_EXAMPLES.md) - Comprehensive code examples
+- [Example Components](./frontend/src/examples/WalletIntegrationExamples.tsx) - Ready-to-use component examples
 
 ## Frontend Setup
 
