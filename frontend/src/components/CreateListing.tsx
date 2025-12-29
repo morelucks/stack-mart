@@ -24,7 +24,7 @@ export const CreateListing = () => {
       return;
     }
 
-    const bipsValidation = validateBasisPoints(royaltyBips, 1000);
+    const bipsValidation = validateBasisPoints(royaltyBips, MAX_ROYALTY_BIPS);
     if (!bipsValidation.valid) {
       alert(bipsValidation.error);
       return;
