@@ -8,6 +8,7 @@ StackMart is a decentralized marketplace on Stacks where creators list digital g
 - Reputation and delivery attestation (seller/buyer signals recorded on-chain).
 - Dispute resolution via community staking and weighted votes.
 - Bundles and curated packs with discounted pricing.
+- **Multi-wallet support** via Reown AppKit and WalletKit SDK for seamless user experience.
 
 ## Repo Structure
 - `Clarinet.toml` – Clarinet project manifest.
@@ -36,3 +37,122 @@ StackMart is a decentralized marketplace on Stacks where creators list digital g
 - Use `clarinet check` to lint/check contracts as you build.
 - Keep contract interfaces and tests in sync; simnet state resets between tests.
 - Capture any protocol decisions (e.g., royalty splits, dispute parameters) in this README as the design evolves.
+
+## Wallet Integration
+
+StackMart supports multiple wallet connection options for maximum flexibility and user experience:
+
+### Reown AppKit Integration
+
+[Reown AppKit](https://reown.com/appkit) (formerly WalletConnect AppKit) provides seamless wallet connections with support for 100+ wallets including MetaMask, Coinbase Wallet, WalletConnect, and more.
+
+**Features:**
+- 🔌 Multi-wallet support via WalletConnect protocol
+- 📧 Email and social login options
+- 🌐 Multi-chain support (Ethereum, Base, Polygon, etc.)
+- 🎨 Modern, customizable UI components
+- 📱 Mobile wallet support
+
+**Usage:**
+```tsx
+import { AppKitConnectButton } from './components/AppKitConnectButton';
+
+function App() {
+  return <AppKitConnectButton />;
+}
+```
+
+**Configuration:**
+1. Get your Project ID from [Reown Cloud](https://cloud.reown.com)
+2. Add to `.env`: `VITE_REOWN_PROJECT_ID=your_project_id`
+
+### WalletKit SDK Integration
+
+[WalletKit SDK](https://walletkit.com) enables gasless transactions and smart wallet features, removing friction for users.
+
+**Features:**
+- ⚡ **Gasless transactions** - Zero gas fees for users
+- 🔐 **Smart wallets** - Pre-built smart wallet infrastructure
+- 📧 Email and social login
+- 🔄 Recoverable wallets with key splitting
+- 🌐 Multi-chain support (Ethereum, Base, Solana, Polkadot)
+
+**Usage:**
+```tsx
+import { WalletKitButton } from './components/WalletKitButton';
+
+function App() {
+  return <WalletKitButton />;
+}
+```
+
+**Configuration:**
+1. Get your Project ID from [WalletKit Dashboard](https://walletkit.com)
+2. Add to `.env`: `VITE_WALLETKIT_PROJECT_ID=your_project_id`
+
+### Unified Wallet Selector
+
+For the best user experience, use the unified wallet selector that supports all wallet types:
+
+```tsx
+import { UnifiedWalletSelector } from './components/UnifiedWalletSelector';
+
+function App() {
+  return <UnifiedWalletSelector />;
+}
+```
+
+This component allows users to choose between:
+- **Stacks Connect** - Native Stacks blockchain wallets
+- **Reown AppKit** - 100+ EVM wallets via WalletConnect
+- **WalletKit SDK** - Gasless smart wallets
+
+### Available Hooks
+
+```tsx
+// Unified wallet state
+import { useAllWallets } from './hooks/useAllWallets';
+const { isAnyConnected, connectedWallets, getPrimaryAddress } = useAllWallets();
+
+// Individual wallet hooks
+import { useAppKitIntegration } from './hooks/useAppKitIntegration';
+import { useWalletKitHook } from './hooks/useWalletKit';
+import { useStacks } from './hooks/useStacks';
+```
+
+### Documentation
+
+For detailed integration guides, see:
+- [Complete Wallet Integration Guide](./frontend/WALLET_INTEGRATION_GUIDE.md)
+- [AppKit Integration Guide](./frontend/APPKIT_INTEGRATION.md)
+- [WalletKit Integration Guide](./frontend/WALLETKIT_INTEGRATION.md)
+
+## Frontend Setup
+
+The frontend is a React + TypeScript application using Vite.
+
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Configure environment variables:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your Project IDs
+   ```
+
+4. Start development server:
+   ```bash
+   npm run dev
+   ```
+
+5. Build for production:
+   ```bash
+   npm run build
+   ```
