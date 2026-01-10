@@ -87,62 +87,34 @@ export const useStacks = () => {
   const connectWallet = async () => {
     setIsLoading(true);
     try {
-      // Force a check immediately
-      const checkConnection = () => {
-        try {
-          const isSignedIn = userSession.isUserSignedIn();
-          setIsStacksConnected(isSignedIn);
-          
-          if (isSignedIn) {
-            const data = userSession.loadUserData();
-            if (data) {
-              setUserData(data);
-              setIsLoading(false);
-              return true;
-            }
-          }
-          return false;
-        } catch (error) {
-          console.error('Error checking connection:', error);
-          return false;
+      // Check if already connected
+      if (isConnected()) {
+        console.log('Already authenticated');
+        const data = getLocalStorage();
+        if (data) {
+          setUserData(data);
         }
-      };
-
-      // Check immediately
-      if (checkConnection()) {
+        setIsStacksConnected(true);
+        setIsLoading(false);
         return;
       }
 
-      // If not connected yet, poll for changes
-      let attempts = 0;
-      const maxAttempts = 20; // Increased attempts
+      // Connect to wallet
+      const response = await connect();
+      console.log('Connected:', response.addresses);
       
-      const interval = setInterval(() => {
-        attempts++;
-        if (checkConnection()) {
-          clearInterval(interval);
-          return;
-        }
-        
-        // If max attempts reached, stop checking
-        if (attempts >= maxAttempts) {
-          setIsLoading(false);
-          clearInterval(interval);
-          // Final check
-          try {
-            const data = userSession.loadUserData();
-            setUserData(data || undefined);
-            setIsStacksConnected(userSession.isUserSignedIn());
-          } catch (error) {
-            console.error('Error loading user data after connect:', error);
-            setUserData(undefined);
-            setIsStacksConnected(false);
-          }
-        }
-      }, 300); // Check every 300ms
+      // Update state with connection data
+      if (response.addresses) {
+        setUserData(response);
+        setIsStacksConnected(true);
+      }
+      
+      setIsLoading(false);
     } catch (error) {
       console.error('Error in connectWallet:', error);
       setIsLoading(false);
+      setIsStacksConnected(false);
+      setUserData(undefined);
     }
   };
 
