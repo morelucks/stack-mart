@@ -13,8 +13,32 @@ export const useAllWallets = () => {
 
   const isAnyConnected = stacks.isConnected || appKit.isConnected || walletKit.isConnected;
   
+  // Helper to extract Stacks address from userData (supports both old and new API formats)
+  const getStacksAddress = () => {
+    if (!stacks.userData) return null;
+    
+    // Try new API format first (addresses.stx[0].address)
+    if (stacks.userData.addresses?.stx?.[0]?.address) {
+      return stacks.userData.addresses.stx[0].address;
+    }
+    
+    // Try alternative new API format
+    if (Array.isArray(stacks.userData.addresses?.stx) && stacks.userData.addresses.stx.length > 0) {
+      const firstAddress = stacks.userData.addresses.stx[0];
+      if (typeof firstAddress === 'string') {
+        return firstAddress;
+      }
+      if (firstAddress?.address) {
+        return firstAddress.address;
+      }
+    }
+    
+    // Try old API format (profile.stxAddress)
+    return stacks.userData.profile?.stxAddress?.mainnet || stacks.userData.profile?.stxAddress?.testnet || null;
+  };
+
   const connectedWallets = [
-    stacks.isConnected && { type: 'stacks', address: stacks.userData?.profile?.stxAddress?.mainnet || stacks.userData?.profile?.stxAddress?.testnet },
+    stacks.isConnected && { type: 'stacks', address: getStacksAddress() },
     appKit.isConnected && { type: 'appkit', address: appKit.address },
     walletKit.isConnected && { type: 'walletkit', address: walletKit.address },
   ].filter(Boolean) as Array<{ type: string; address: string }>;
@@ -33,8 +57,9 @@ export const useAllWallets = () => {
     // Helper methods
     getPrimaryAddress: () => {
       // Priority: Stacks > AppKit > WalletKit
-      if (stacks.isConnected && stacks.userData?.profile?.stxAddress) {
-        return stacks.userData.profile.stxAddress.mainnet || stacks.userData.profile.stxAddress.testnet;
+      if (stacks.isConnected) {
+        const stacksAddress = getStacksAddress();
+        if (stacksAddress) return stacksAddress;
       }
       if (appKit.isConnected && appKit.address) {
         return appKit.address;
