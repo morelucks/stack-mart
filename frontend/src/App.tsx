@@ -28,13 +28,21 @@ function App() {
   const [selectedListingId, setSelectedListingId] = useState<number | null>(null);
   const [isLoadingListings, setIsLoadingListings] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>('listings');
+  // Always start at listings tab (home)
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    // Check if there's a saved tab preference, otherwise default to listings
+    const savedTab = localStorage.getItem('stackmart_active_tab') as TabType;
+    return savedTab && ['listings', 'bundles', 'packs', 'disputes', 'dashboard'].includes(savedTab) 
+      ? savedTab 
+      : 'listings';
+  });
   const [disputeEscrowId, setDisputeEscrowId] = useState<number | null>(null);
 
   const goHome = () => {
     setSelectedListingId(null);
     setActiveTab('listings');
     setDisputeEscrowId(null);
+    localStorage.setItem('stackmart_active_tab', 'listings');
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -105,9 +113,19 @@ function App() {
   const enterMarketplace = () => {
     localStorage.setItem('stackmart_has_visited', 'true');
     setShowLanding(false);
+    // Always go to listings (home) tab when entering marketplace
+    setActiveTab('listings');
+    localStorage.setItem('stackmart_active_tab', 'listings');
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Save tab preference when it changes
+  useEffect(() => {
+    if (!showLanding) {
+      localStorage.setItem('stackmart_active_tab', activeTab);
+    }
+  }, [activeTab, showLanding]);
 
   // Show landing page if user hasn't visited (after all hooks are called)
   if (showLanding) {
