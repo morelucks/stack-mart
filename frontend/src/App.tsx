@@ -89,14 +89,6 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const goHome = () => {
-    setSelectedListingId(null);
-    setActiveTab('listings');
-    setDisputeEscrowId(null);
-    // Scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   if (selectedListingId) {
     return (
       <div className="App">
