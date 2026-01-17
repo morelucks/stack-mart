@@ -43,18 +43,6 @@ function App() {
     setShowLanding(true);
   };
 
-  const enterMarketplace = () => {
-    localStorage.setItem('stackmart_has_visited', 'true');
-    setShowLanding(false);
-    // Scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // Show landing page if user hasn't visited
-  if (showLanding) {
-    return <LandingPage onEnter={enterMarketplace} />;
-  }
-
   const loadListings = async () => {
     setIsLoadingListings(true);
     setError(null);
@@ -90,6 +78,9 @@ function App() {
 
   // Load listings from contract - with error handling
   useEffect(() => {
+    // Only load listings if not on landing page
+    if (showLanding) return;
+    
     // Use setTimeout to ensure component is mounted
     const timer = setTimeout(() => {
       try {
@@ -109,7 +100,19 @@ function App() {
     }, 100);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [showLanding]);
+
+  const enterMarketplace = () => {
+    localStorage.setItem('stackmart_has_visited', 'true');
+    setShowLanding(false);
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Show landing page if user hasn't visited (after all hooks are called)
+  if (showLanding) {
+    return <LandingPage onEnter={enterMarketplace} />;
+  }
 
   if (selectedListingId) {
     return (
