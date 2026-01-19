@@ -1,7 +1,7 @@
 import { useAccount } from 'wagmi';
 import { useStacks } from './useStacks';
 import { getStacksAddress } from '../utils/validation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 interface Transaction {
   hash: string;
@@ -22,16 +22,24 @@ export const useTransactionHistory = () => {
   const [appKitTransactions, setAppKitTransactions] = useState<Transaction[]>([]);
   const [stacksTransactions, setStacksTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const loadingRef = useRef({ appKit: false, stacks: false });
+
+  const updateLoadingState = () => {
+    setIsLoading(loadingRef.current.appKit || loadingRef.current.stacks);
+  };
 
   // Fetch AppKit transactions
   useEffect(() => {
     const fetchAppKitTransactions = async () => {
       if (!appKitConnected || !appKitAddress) {
         setAppKitTransactions([]);
+        loadingRef.current.appKit = false;
+        updateLoadingState();
         return;
       }
 
-      setIsLoading(true);
+      loadingRef.current.appKit = true;
+      updateLoadingState();
       try {
         // In production, use a block explorer API or indexer
         // For now, this is a placeholder
@@ -45,7 +53,8 @@ export const useTransactionHistory = () => {
         console.error('Error fetching AppKit transactions:', error);
         setAppKitTransactions([]);
       } finally {
-        setIsLoading(false);
+        loadingRef.current.appKit = false;
+        updateLoadingState();
       }
     };
 
@@ -57,16 +66,21 @@ export const useTransactionHistory = () => {
     const fetchStacksTransactions = async () => {
       if (!stacksConnected || !userData) {
         setStacksTransactions([]);
+        loadingRef.current.stacks = false;
+        updateLoadingState();
         return;
       }
 
       const address = getStacksAddress(userData);
       if (!address) {
         setStacksTransactions([]);
+        loadingRef.current.stacks = false;
+        updateLoadingState();
         return;
       }
 
-      setIsLoading(true);
+      loadingRef.current.stacks = true;
+      updateLoadingState();
       try {
         const response = await fetch(
           `https://api.hiro.so/extended/v1/address/${address}/transactions?limit=10`
@@ -87,7 +101,8 @@ export const useTransactionHistory = () => {
         console.error('Error fetching Stacks transactions:', error);
         setStacksTransactions([]);
       } finally {
-        setIsLoading(false);
+        loadingRef.current.stacks = false;
+        updateLoadingState();
       }
     };
 

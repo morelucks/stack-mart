@@ -160,11 +160,15 @@ export const Dashboard = () => {
             {/* Transaction History - Multi-Chain */}
             <section>
                 <h2>Recent Activity</h2>
-                {isAnyConnected && (
-                    <div style={{ marginBottom: '1.5rem' }}>
+                <div style={{ marginBottom: '1.5rem' }}>
+                    {isAnyConnected ? (
                         <TransactionHistory />
-                    </div>
-                )}
+                    ) : (
+                        <div className="info-box">
+                            Connect a wallet to view transaction history
+                        </div>
+                    )}
+                </div>
                 {isLoading ? (
                     <LoadingSkeleton count={1} />
                 ) : history.length > 0 ? (
