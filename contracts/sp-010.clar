@@ -44,3 +44,13 @@
 ;; Get total supply of tokens
 (define-read-only (get-total-supply)
   (ok (var-get total-supply)))
+;; Transfer Helper Functions
+
+;; Validate transfer parameters
+(define-private (validate-transfer (amount uint) (sender principal) (recipient principal))
+  (begin
+    ;; Check for zero amount
+    (asserts! (> amount u0) ERR-INVALID-AMOUNT)
+    ;; Check for self-transfer
+    (asserts! (not (is-eq sender recipient)) ERR-SELF-TRANSFER)
+    (ok true)))
