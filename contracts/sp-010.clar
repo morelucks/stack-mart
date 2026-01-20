@@ -12,7 +12,8 @@
 ;; - Gas-optimized storage operations
 ;; - Initial token distribution to deployer
 
-;; Contract metadata
+;; Contract metadata constants
+;; These define the basic token properties following SIP-010 standard
 (define-constant CONTRACT-NAME "SP-010")
 (define-constant CONTRACT-SYMBOL "SP010")
 (define-constant CONTRACT-DECIMALS u6)
