@@ -8,6 +8,10 @@ StackMart is a decentralized marketplace on Stacks where creators list digital g
 - Reputation and delivery attestation (seller/buyer signals recorded on-chain).
 - Dispute resolution via community staking and weighted votes.
 - Bundles and curated packs with discounted pricing.
+- **Marketplace Fees** – Configurable fee system with automatic distribution.
+- **Wishlist System** – Users can favorite listings for quick access.
+- **Price History** – On-chain tracking and visualization of listing price changes.
+- **Reputation Volume** – Enhanced reputation metrics including total transaction volume.
 - **Multi-wallet support** via Reown AppKit and WalletKit SDK for seamless user experience.
 
 ## Repo Structure

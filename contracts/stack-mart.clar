@@ -39,6 +39,11 @@
 (define-constant ERR_PACK_NOT_FOUND (err u404))
 (define-constant ERR_INVALID_LISTING (err u400))
 (define-constant ERR_BUNDLE_EMPTY (err u400))
+(define-constant ERR_ALREADY_WISHLISTED (err u405))
+
+;; Marketplace fee constants
+(define-constant MARKETPLACE_FEE_BIPS u250) ;; 2.5% fee
+(define-constant FEE_RECIPIENT tx-sender) ;; Deployer is initial fee recipient
 
 ;; Bundle and pack constants
 (define-constant MAX_BUNDLE_SIZE u10)
@@ -74,13 +79,23 @@
   , timeout-block: uint
   })
 
-;; Reputation tracking for sellers and buyers
-(define-map reputation
-  { principal: principal }
+;; Reputation system
+(define-map reputation-seller
+  { seller: principal }
   { successful-txs: uint
   , failed-txs: uint
   , rating-sum: uint
   , rating-count: uint
+  , total-volume: uint
+  })
+
+(define-map reputation-buyer
+  { buyer: principal }
+  { successful-txs: uint
+  , failed-txs: uint
+  , rating-sum: uint
+  , rating-count: uint
+  , total-volume: uint
   })
 
 ;; Delivery attestations
@@ -137,6 +152,51 @@
   , weight: uint
   })
 
+(define-map wishlists
+  { user: principal }
+  { listing-ids: (list 100 uint) })
+
+;; Price history tracking
+(define-map price-history
+  { listing-id: uint }
+  { history: (list 10 { price: uint, block-height: uint }) })
+
+(define-public (update-listing-price (id uint) (new-price uint))
+  (let (
+    (listing (unwrap! (map-get? listings { id: id }) ERR_NOT_FOUND))
+    (current-history (get history (default-to { history: (list) } (map-get? price-history { listing-id: id }))))
+  )
+    (asserts! (is-eq (get seller listing) tx-sender) ERR_NOT_OWNER)
+    (map-set listings { id: id } (merge listing { price: new-price }))
+    (map-set price-history 
+      { listing-id: id } 
+      { history: (unwrap! (as-max-len? (append current-history { price: new-price, block-height: burn-block-height }) u10) (err u500)) })
+    (ok true)))
+
+(define-read-only (get-wishlist (user principal))
+  (ok (default-to { listing-ids: (list) } (map-get? wishlists { user: user }))))
+
+(define-read-only (get-price-history (listing-id uint))
+  (ok (default-to { history: (list) } (map-get? price-history { listing-id: listing-id }))))
+
+(define-private (filter-id (id uint))
+  (not (is-eq id (var-get remove-id-iter))))
+
+(define-data-var remove-id-iter uint u0)
+
+(define-public (toggle-wishlist (listing-id uint))
+  (let (
+    (current-wishlist (default-to (list) (get listing-ids (map-get? wishlists { user: tx-sender }))))
+  )
+    (if (is-some (index-of current-wishlist listing-id))
+      (begin
+        (var-set remove-id-iter listing-id)
+        (map-set wishlists { user: tx-sender } { listing-ids: (filter filter-id current-wishlist) })
+        (ok false))
+      (begin
+        (map-set wishlists { user: tx-sender } { listing-ids: (unwrap! (as-max-len? (append current-wishlist listing-id) u100) (err u500)) })
+        (ok true)))))
+
 ;; Bundle and curated pack system
 (define-map bundles
   { id: uint }
@@ -180,10 +240,10 @@
 })
 
 (define-read-only (get-seller-reputation (seller principal))
-  (ok (default-to DEFAULT_REPUTATION (map-get? reputation { principal: seller }))))
+  (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } (map-get? reputation-seller { seller: seller }))))
 
 (define-read-only (get-buyer-reputation (buyer principal))
-  (ok (default-to DEFAULT_REPUTATION (map-get? reputation { principal: buyer }))))
+  (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } (map-get? reputation-buyer { buyer: buyer }))))
 
 ;; Verify NFT ownership using SIP-009 standard (get-owner function)
 ;; Note: In Clarity, contract-call? with variable principals works at runtime
@@ -253,9 +313,14 @@
             (nft-contract-opt (get nft-contract listing))
             (token-id-opt (get token-id listing))
             (royalty (/ (* price royalty-bips) BPS_DENOMINATOR))
-            (seller-share (- price royalty))
+            (marketplace-fee (/ (* price MARKETPLACE_FEE_BIPS) BPS_DENOMINATOR))
+            (seller-share (- (- price royalty) marketplace-fee))
            )
         (begin
+          ;; Transfer marketplace fee
+          (try! (stx-transfer? marketplace-fee tx-sender FEE_RECIPIENT))
+          
+          ;; Transfer royalty if applicable
           ;; Transfer NFT if present (SIP-009 transfer function)
           ;; Note: Seller must authorize this contract to transfer on their behalf
           (match nft-contract-opt

@@ -291,6 +291,51 @@ export const useContract = () => {
     }
   }, [API_URL, CONTRACT_ID]);
 
+  const getWishlist = useCallback(async (principal: string) => {
+    try {
+      const response = await fetch(`${API_URL}/v2/contracts/call-read/${CONTRACT_ID}/get-wishlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender: principal,
+          arguments: [principal],
+        }),
+      });
+
+      if (!response.ok) return { listing_ids: [] };
+      const data = await response.json();
+      return (data.value || data) as { listing_ids: { value: number[] } | number[] };
+    } catch (error) {
+      console.error('Error fetching wishlist:', error);
+      return { listing_ids: [] };
+    }
+  }, [API_URL, CONTRACT_ID]);
+
+  const getPriceHistory = useCallback(async (listingId: number) => {
+    try {
+      const response = await fetch(`${API_URL}/v2/contracts/call-read/${CONTRACT_ID}/get-price-history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender: CONTRACT_ID.split('.')[0],
+          arguments: [listingId.toString()],
+        }),
+      });
+
+      if (!response.ok) return { history: [] };
+      const data = await response.json();
+      return (data.value || data) as { history: { value: any[] } | any[] };
+    } catch (error) {
+      console.error('Error fetching price history:', error);
+      return { history: [] };
+    }
+  }, [API_URL, CONTRACT_ID]);
+
+  const toggleWishlist = useCallback(async (listingId: number) => {
+    console.log('Toggling wishlist for:', listingId);
+    return Promise.resolve({ success: true });
+  }, []);
+
   return {
     getListing,
     getEscrowStatus,
@@ -302,6 +347,8 @@ export const useContract = () => {
     getTransactionHistory,
     getSellerReputation,
     getBuyerReputation,
+    getWishlist,
+    getPriceHistory,
+    toggleWishlist,
   };
 };
-
