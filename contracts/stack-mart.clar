@@ -264,6 +264,7 @@
   (begin
     (asserts! (<= royalty-bips MAX_ROYALTY_BIPS) ERR_BAD_ROYALTY)
     (let ((id (var-get next-id)))
+      ;; Create the listing
       (map-set listings
         { id: id }
         { seller: tx-sender
@@ -273,8 +274,30 @@
         , nft-contract: none
         , token-id: none
         , license-terms: none })
+      
+      ;; Increment counter
       (var-set next-id (+ id u1))
-      (ok id))))
+      
+      ;; Emit event after successful creation
+      (print {
+        event: "listing-created",
+        listing-id: id,
+        seller: tx-sender,
+        price: price,
+        royalty-bips: royalty-bips,
+        royalty-recipient: royalty-recipient,
+        timestamp: burn-block-height,
+        nft-contract: none,
+        token-id: none
+      })
+      
+      ;; Return the new listing ID
+      (ok id)
+    )
+  )
+)
+
+
 
 ;; Create listing with NFT and license terms
 (define-public (create-listing-with-nft
@@ -289,6 +312,7 @@
     ;; Verify seller owns the NFT
     (asserts! (verify-nft-ownership nft-contract token-id tx-sender) ERR_NOT_OWNER)
     (let ((id (var-get next-id)))
+      ;; Create the listing
       (map-set listings
         { id: id }
         { seller: tx-sender
@@ -298,8 +322,29 @@
         , nft-contract: (some nft-contract)
         , token-id: (some token-id)
         , license-terms: (some license-terms) })
+      
+      ;; Increment counter
       (var-set next-id (+ id u1))
-      (ok id))))
+      
+      ;; Emit event for NFT listing creation
+      (print {
+        event: "nft-listing-created",
+        listing-id: id,
+        seller: tx-sender,
+        nft-contract: nft-contract,
+        token-id: token-id,
+        price: price,
+        royalty-bips: royalty-bips,
+        royalty-recipient: royalty-recipient,
+        license-terms: license-terms,
+        timestamp: burn-block-height
+      })
+      
+      ;; Return the new listing ID
+      (ok id)
+    )
+  )
+)
 
 ;; Legacy immediate purchase (kept for backward compatibility)
 (define-public (buy-listing (id uint))
