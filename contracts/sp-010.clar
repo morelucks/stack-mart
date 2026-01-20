@@ -122,3 +122,8 @@
     ;; Emit mint event
     (emit-mint-event amount recipient)
     (ok true)))
+;; Contract Initialization
+
+;; Initialize contract with initial token supply to deployer
+(begin
+  (try! (mint INITIAL-SUPPLY tx-sender)))
