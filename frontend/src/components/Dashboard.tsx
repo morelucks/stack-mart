@@ -91,15 +91,15 @@ export const Dashboard = () => {
                         {sellerRep ? (
                             <div style={{ display: 'flex', gap: '2rem' }}>
                                 <div>
-                                    <div style={{ fontSize: '0.875rem', color: 'var(--gray-500)' }}>Successful Sales</div>
+                                    <div style={{ fontSize: '0.875rem', color: 'var(--gray-500)' }}>Sales</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--success)' }}>
                                         {sellerRep['successful-txs']?.value || 0}
                                     </div>
                                 </div>
-                                <div>
-                                    <div style={{ fontSize: '0.875rem', color: 'var(--gray-500)' }}>Failed Sales</div>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--error)' }}>
-                                        {sellerRep['failed-txs']?.value || 0}
+                                <div style={{ borderLeft: '1px solid var(--gray-200)', paddingLeft: '2rem' }}>
+                                    <div style={{ fontSize: '0.875rem', color: 'var(--gray-500)' }}>Total Volume</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary)' }}>
+                                        {formatSTX(sellerRep['total-volume']?.value || 0)} STX
                                     </div>
                                 </div>
                             </div>
@@ -120,6 +120,12 @@ export const Dashboard = () => {
                                     <div style={{ fontSize: '0.875rem', color: 'var(--gray-500)' }}>Purchases</div>
                                     <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--info)' }}>
                                         {buyerRep['successful-txs']?.value || 0}
+                                    </div>
+                                </div>
+                                <div style={{ borderLeft: '1px solid var(--gray-200)', paddingLeft: '2rem' }}>
+                                    <div style={{ fontSize: '0.875rem', color: 'var(--gray-500)' }}>Total Spent</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary)' }}>
+                                        {formatSTX(buyerRep['total-volume']?.value || 0)} STX
                                     </div>
                                 </div>
                             </div>
