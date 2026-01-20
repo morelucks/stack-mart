@@ -253,25 +253,6 @@ export const useContract = () => {
     }
   }, [API_URL, CONTRACT_ID]);
 
-  const getSellerReputation = useCallback(async (principal: string) => {
-    try {
-      const response = await fetch(`${API_URL}/v2/contracts/call-read/${CONTRACT_ID}/get-seller-reputation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sender: principal,
-          arguments: [principal],
-        }),
-      });
-
-      if (!response.ok) return null;
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching seller reputation:', error);
-      return null;
-    }
-  }, [API_URL, CONTRACT_ID]);
-
   const getBuyerReputation = useCallback(async (principal: string) => {
     try {
       const response = await fetch(`${API_URL}/v2/contracts/call-read/${CONTRACT_ID}/get-buyer-reputation`, {
@@ -288,6 +269,46 @@ export const useContract = () => {
     } catch (error) {
       console.error('Error fetching buyer reputation:', error);
       return null;
+    }
+  }, [API_URL, CONTRACT_ID]);
+
+  const getWishlist = useCallback(async (principal: string) => {
+    try {
+      const response = await fetch(`${API_URL}/v2/contracts/call-read/${CONTRACT_ID}/get-wishlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender: principal,
+          arguments: [principal],
+        }),
+      });
+
+      if (!response.ok) return { listing_ids: [] };
+      const data = await response.json();
+      return (data.value || data) as { listing_ids: { value: number[] } | number[] };
+    } catch (error) {
+      console.error('Error fetching wishlist:', error);
+      return { listing_ids: [] };
+    }
+  }, [API_URL, CONTRACT_ID]);
+
+  const getPriceHistory = useCallback(async (listingId: number) => {
+    try {
+      const response = await fetch(`${API_URL}/v2/contracts/call-read/${CONTRACT_ID}/get-price-history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender: CONTRACT_ID.split('.')[0],
+          arguments: [listingId.toString()],
+        }),
+      });
+
+      if (!response.ok) return { history: [] };
+      const data = await response.json();
+      return (data.value || data) as { history: { value: any[] } | any[] };
+    } catch (error) {
+      console.error('Error fetching price history:', error);
+      return { history: [] };
     }
   }, [API_URL, CONTRACT_ID]);
 
