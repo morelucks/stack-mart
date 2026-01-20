@@ -8,28 +8,14 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      backgroundColor: '#f7f7f2',
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '2rem',
+      alignItems: 'stretch',
+      paddingBottom: '3rem',
       position: 'relative',
       overflow: 'hidden'
     }}>
-      {/* Animated background elements */}
-      <div style={{
-        position: 'absolute',
-        top: '-50%',
-        left: '-50%',
-        width: '200%',
-        height: '200%',
-        background: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)',
-        backgroundSize: '50px 50px',
-        animation: 'float 20s infinite linear',
-        pointerEvents: 'none'
-      }} />
-      
       <style>{`
         @keyframes float {
           0% { transform: translate(0, 0) rotate(0deg); }
@@ -50,11 +36,167 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
         }
       `}</style>
 
+      {/* Top navigation like Marketplace Naija */}
+      <header style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e5e5de' }}>
+        <div style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          padding: '0.75rem 1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          {/* Logo / brand */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              border: '2px solid #1a7f1a',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#1a7f1a',
+              fontSize: '1.1rem'
+            }}>
+              🛍️
+            </div>
+            <span style={{
+              fontSize: '1.4rem',
+              fontWeight: 700,
+              color: '#145214'
+            }}>
+              StackMart Naija
+            </span>
+          </div>
+
+          {/* Right actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', fontSize: '0.95rem' }}>
+            <button
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#145214',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+              onClick={onEnter}
+            >
+              Sign in or Register
+            </button>
+            <button
+              onClick={onEnter}
+              style={{
+                backgroundColor: '#26a626',
+                border: 'none',
+                color: '#ffffff',
+                fontWeight: 600,
+                padding: '0.6rem 1.4rem',
+                borderRadius: '999px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+              }}
+            >
+              + Place Your Listing
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#145214' }}>
+              <span>My Account</span>
+              <span style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                border: '1px solid #cfd8cf',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.9rem'
+              }}>
+                🔔
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Green search bar */}
+        <div style={{ backgroundColor: '#2bbe2b', padding: '0.9rem 0' }}>
+          <div style={{
+            maxWidth: '1200px',
+            margin: '0 auto',
+            padding: '0 1.5rem',
+            display: 'grid',
+            gridTemplateColumns: '3fr 2fr 2fr auto',
+            gap: '0.5rem',
+          }}>
+            <input
+              placeholder="What are you looking for?"
+              style={{
+                borderRadius: '4px',
+                border: 'none',
+                padding: '0.6rem 0.75rem',
+                fontSize: '0.95rem'
+              }}
+            />
+            <select
+              style={{
+                borderRadius: '4px',
+                border: 'none',
+                padding: '0.6rem 0.75rem',
+                fontSize: '0.95rem',
+                appearance: 'none'
+              }}
+              defaultValue=""
+            >
+              <option value="" disabled>Select Category</option>
+              <option value="nfts">NFTs</option>
+              <option value="music">Music Rights</option>
+              <option value="art">Digital Art</option>
+              <option value="templates">Code & Templates</option>
+            </select>
+            <select
+              style={{
+                borderRadius: '4px',
+                border: 'none',
+                padding: '0.6rem 0.75rem',
+                fontSize: '0.95rem',
+                appearance: 'none'
+              }}
+              defaultValue=""
+            >
+              <option value="" disabled>Location</option>
+              <option value="lagos">Lagos</option>
+              <option value="abuja">Abuja</option>
+              <option value="portharcourt">Port Harcourt</option>
+              <option value="others">Other Cities</option>
+            </select>
+            <button
+              onClick={onEnter}
+              style={{
+                backgroundColor: '#176a17',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '0.6rem 1.4rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.4rem',
+                cursor: 'pointer'
+              }}
+            >
+              🔍 Search
+            </button>
+          </div>
+        </div>
+      </header>
+
       <div style={{
         maxWidth: '1200px',
         width: '100%',
         zIndex: 1,
-        textAlign: 'center'
+        textAlign: 'center',
+        margin: '3rem auto 0',
+        padding: '0 1.5rem'
       }}>
         {/* Logo/Title */}
         <div className="fade-in-up" style={{
@@ -63,7 +205,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
           <h1 style={{
             fontSize: 'clamp(3rem, 8vw, 5rem)',
             fontWeight: 'bold',
-            color: 'white',
+            color: '#1a1a1a',
             marginBottom: '1rem',
             textShadow: '0 4px 20px rgba(0,0,0,0.3)',
             letterSpacing: '-0.02em'
@@ -72,7 +214,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
           </h1>
           <p style={{
             fontSize: 'clamp(1.2rem, 3vw, 1.8rem)',
-            color: 'rgba(255, 255, 255, 0.95)',
+            color: '#3b3b3b',
             marginBottom: '0.5rem',
             fontWeight: 300
           }}>
@@ -80,7 +222,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
           </p>
           <p style={{
             fontSize: 'clamp(1rem, 2vw, 1.2rem)',
-            color: 'rgba(255, 255, 255, 0.85)',
+            color: '#555555',
             maxWidth: '600px',
             margin: '0 auto',
             lineHeight: '1.6'
@@ -106,8 +248,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
             { icon: '🌐', title: 'Multi-Wallet', desc: 'Support for all major wallets' }
           ].map((feature, idx) => (
             <div key={idx} style={{
-              background: 'rgba(255, 255, 255, 0.15)',
-              backdropFilter: 'blur(10px)',
+              background: '#ffffff',
               borderRadius: '16px',
               padding: '1.5rem',
               border: '1px solid rgba(255, 255, 255, 0.2)',
@@ -127,7 +268,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
                 {feature.icon}
               </div>
               <h3 style={{
-                color: 'white',
+                color: '#1a1a1a',
                 fontSize: '1.2rem',
                 fontWeight: '600',
                 marginBottom: '0.5rem'
@@ -135,7 +276,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
                 {feature.title}
               </h3>
               <p style={{
-                color: 'rgba(255, 255, 255, 0.9)',
+                color: '#555555',
                 fontSize: '0.9rem',
                 lineHeight: '1.5'
               }}>
@@ -166,8 +307,8 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
                 padding: '1rem 2.5rem',
                 fontSize: '1.2rem',
                 fontWeight: '600',
-                color: '#667eea',
-                background: 'white',
+                color: '#ffffff',
+                background: '#26a626',
                 border: 'none',
                 borderRadius: '12px',
                 cursor: 'pointer',
@@ -188,8 +329,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
             </button>
             
             <div style={{
-              background: 'rgba(255, 255, 255, 0.15)',
-              backdropFilter: 'blur(10px)',
+              background: '#ffffff',
               borderRadius: '12px',
               padding: '0.5rem 1rem',
               border: '1px solid rgba(255, 255, 255, 0.2)'
@@ -199,7 +339,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
           </div>
 
           <p style={{
-            color: 'rgba(255, 255, 255, 0.8)',
+            color: '#555555',
             fontSize: '0.9rem',
             marginTop: '1rem'
           }}>
@@ -226,14 +366,14 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
               <div style={{
                 fontSize: '2rem',
                 fontWeight: 'bold',
-                color: 'white',
+                color: '#1a1a1a',
                 marginBottom: '0.25rem'
               }}>
                 {stat.value}
               </div>
               <div style={{
                 fontSize: '0.9rem',
-                color: 'rgba(255, 255, 255, 0.8)'
+                color: '#555555'
               }}>
                 {stat.label}
               </div>
