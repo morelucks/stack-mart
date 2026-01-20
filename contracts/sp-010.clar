@@ -42,7 +42,9 @@
 
 ;; Get balance for a principal (returns 0 if never held tokens)
 (define-read-only (get-balance (who principal))
-  (ok (default-to u0 (map-get? balances who))))
+  (begin
+    (try! (validate-balance-query who))
+    (ok (default-to u0 (map-get? balances who)))))
 ;; Get total supply of tokens
 (define-read-only (get-total-supply)
   (ok (var-get total-supply)))
