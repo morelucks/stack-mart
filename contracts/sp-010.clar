@@ -97,3 +97,11 @@
     sender: sender,
     recipient: recipient
   }))
+;; Emit mint event following SIP-010 specification
+(define-private (emit-mint-event (amount uint) (recipient principal))
+  (print {
+    type: "ft_mint_event",
+    token-contract: (as-contract tx-sender),
+    amount: amount,
+    recipient: recipient
+  }))
