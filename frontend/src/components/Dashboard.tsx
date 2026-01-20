@@ -129,8 +129,13 @@ export const Dashboard = () => {
                                     </div>
                                 </div>
                             </div>
+
+            {/* Wishlist Section */}
+                        <div style={{ marginBottom: '2rem' }}>
+                            <Wishlist />
+                        </div>
                         ) : (
-                            <div className="skeleton-text" />
+                        <div className="skeleton-text" />
                         )}
                     </div>
                 </div>
