@@ -52,6 +52,7 @@ export const ListingCard = ({ listing, onBuy, onViewDetails }: ListingCardProps)
 <button className="wishlist-btn" onClick={() => toggleWishlist(listing.id)}>❤️</button>
           </div>
           <div style={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
+<div className="seller-volume">Vol: {listing.sellerVolume || 0} STX</div>
             {formatAddress(listing.seller)}
           </div>
 <ReputationBadge vol={listing.sellerVolume} />
