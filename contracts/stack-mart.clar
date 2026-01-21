@@ -439,11 +439,14 @@
             (asserts! (is-eq tx-sender (get buyer escrow)) ERR_NOT_BUYER)
             (asserts! (is-eq (get state escrow) "delivered") ERR_INVALID_STATE)
             ;; Release escrow payments
+(marketplace-fee (/ (* price (var-get marketplace-fee-bips)) BPS_DENOMINATOR))
+(seller-share (- (- price royalty) marketplace-fee))
             (let (
                   (price (get amount escrow))
                   (royalty-bips (get royalty-bips listing))
                   (seller (get seller listing))
                   (royalty-recipient (get royalty-recipient listing))
+(try! (stx-transfer? marketplace-fee tx-sender (var-get fee-recipient)))
                   (royalty (/ (* price royalty-bips) BPS_DENOMINATOR))
                   (seller-share (- price royalty))
                  )
