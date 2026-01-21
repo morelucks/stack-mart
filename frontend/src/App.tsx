@@ -254,6 +254,7 @@ function App() {
           >
             ⚖️ Disputes
           </button>
+<button className={`btn ${activeTab === "auctions" ? "btn-primary" : "btn-outline"}`} onClick={() => setActiveTab("auctions")} style={{ borderRadius: "8px 8px 0 0" }}>🔨 Auctions</button>
         </div>
 
         {/* Tab Content */}
