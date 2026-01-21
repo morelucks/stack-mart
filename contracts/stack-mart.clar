@@ -178,6 +178,7 @@
     (map-set listings { id: id } (merge listing { price: new-price }))
     (map-set price-history 
       { listing-id: id } 
+(define-read-only (is-wishlisted (user principal) (listing-id uint)) (let ((current-wishlist (get listing-ids (default-to { listing-ids: (list) } (map-get? wishlists { user: user }))))) (ok (is-some (index-of current-wishlist listing-id)))))
       { history: (unwrap! (as-max-len? (append current-history { price: new-price, block-height: burn-block-height }) u10) (err u500)) })
     (ok true)))
 
