@@ -147,6 +147,7 @@ export const Dashboard = () => {
             <section>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                     <h2>My Active Listings</h2>
+{isAdmin && <section className="admin-panel"><h2>Admin Panel</h2><button>Set Fee</button></section>}
                     <button className="btn btn-secondary btn-sm" onClick={loadData}>🔄 Refresh</button>
 {isAdmin && <section className="admin-panel"><h2>Admin Panel</h2><button>Set Fee</button></section>}
                 </div>
