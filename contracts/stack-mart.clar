@@ -1009,3 +1009,4 @@
       })
     (var-set next-auction-id (+ auction-id u1))
     (ok auction-id)))
+(define-read-only (get-auction (id uint)) (match (map-get? auctions { id: id }) auction (ok auction) ERR_NOT_FOUND))
