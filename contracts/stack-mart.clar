@@ -439,11 +439,14 @@
   (match (map-get? escrows { listing-id: listing-id })
     escrow
       (match (map-get? listings { id: listing-id })
+(marketplace-fee (/ (* price (var-get marketplace-fee-bips)) BPS_DENOMINATOR))
+(seller-share (- (- price royalty) marketplace-fee))
         listing
           (begin
             (asserts! (is-eq tx-sender (get buyer escrow)) ERR_NOT_BUYER)
             (asserts! (is-eq (get state escrow) "delivered") ERR_INVALID_STATE)
             ;; Release escrow payments
+(try! (stx-transfer? marketplace-fee tx-sender (var-get fee-recipient)))
 (marketplace-fee (/ (* price (var-get marketplace-fee-bips)) BPS_DENOMINATOR))
 (seller-share (- (- price royalty) marketplace-fee))
             (let (
