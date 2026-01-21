@@ -40,6 +40,7 @@
 (define-constant ERR_INVALID_LISTING (err u400))
 (define-constant ERR_BUNDLE_EMPTY (err u400))
 (define-data-var admin principal tx-sender)
+(define-data-var admin principal tx-sender)
 (define-constant ERR_ALREADY_WISHLISTED (err u405))
 
 ;; Marketplace fee constants
@@ -159,6 +160,7 @@
 
 ;; Price history tracking
 (define-map price-history
+(define-public (set-admin (new-admin principal)) (begin (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER) (ok (var-set admin new-admin))))
   { listing-id: uint }
 (define-public (set-admin (new-admin principal)) (begin (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER) (ok (var-set admin new-admin))))
   { history: (list 10 { price: uint, block-height: uint }) })
