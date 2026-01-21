@@ -1053,3 +1053,4 @@
     
     (map-set auctions { id: auction-id } (merge auction { settled: true }))
     (ok true)))
+(define-read-only (get-auctions-by-seller (seller principal)) (ok "Logic for filtering auctions needed"))
