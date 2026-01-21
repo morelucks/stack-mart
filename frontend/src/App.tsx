@@ -221,30 +221,11 @@ function App() {
           gap: '0.25rem'
         }}>
           <button
-            className={`btn ${activeTab === 'listings' ? 'btn-primary' : 'btn-outline'}`}
-            onClick={goHome}
-            style={{ 
-              borderRadius: '0',
-              margin: '0 0.75rem 0.25rem 0.75rem',
-              textAlign: 'left',
-              justifyContent: 'flex-start',
-              padding: '0.875rem 1rem',
-              width: 'calc(100% - 1.5rem)',
-              borderLeft: activeTab === 'listings' ? '3px solid var(--primary)' : '3px solid transparent',
-              backgroundColor: activeTab === 'listings' ? 'var(--primary)' : 'transparent',
-              color: activeTab === 'listings' ? '#ffffff' : 'var(--gray-700)',
-              fontWeight: activeTab === 'listings' ? '600' : '400'
-            }}
-            title="Go to home (Listings)"
-          >
-            🏠 Home
-          </button>
-          <button
             className={`btn ${activeTab === 'dashboard' ? 'btn-primary' : 'btn-outline'}`}
             onClick={() => setActiveTab('dashboard')}
             style={{ 
               borderRadius: '0',
-              margin: '0 0.75rem',
+              margin: '0 0.75rem 0.25rem 0.75rem',
               textAlign: 'left',
               justifyContent: 'flex-start',
               padding: '0.875rem 1rem',
