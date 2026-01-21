@@ -614,6 +614,7 @@
                   , timeout-block: (get timeout-block escrow) })
                 (ok true))))
         ERR_NOT_FOUND)
+(total-volume: (if success (+ (get total-volume current-rep) amount) (get total-volume current-rep)))
     ERR_ESCROW_NOT_FOUND))
 
 
