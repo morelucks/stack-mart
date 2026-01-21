@@ -265,7 +265,7 @@ export const useContract = () => {
       });
 
       if (!response.ok) return null;
-      return await response.json();
+      const data = await response.json(); return { ...data, totalVolume: data["total-volume"] || 0 };
     } catch (error) {
       console.error('Error fetching seller reputation:', error);
       return null;
@@ -284,7 +284,7 @@ export const useContract = () => {
       });
 
       if (!response.ok) return null;
-      return await response.json();
+      const data = await response.json(); return { ...data, totalVolume: data["total-volume"] || 0 };
     } catch (error) {
       console.error('Error fetching buyer reputation:', error);
       return null;
