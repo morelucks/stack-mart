@@ -978,3 +978,15 @@
 (define-read-only (get-formatted-reputation (user principal)) (let ((rep (unwrap-rslt! (get-seller-reputation user) (err u0)))) (ok rep)))
 (define-read-only (get-listings-by-seller (seller principal)) (ok "Logic for filtering map needed or iterate IDs"))
 (define-read-only (get-formatted-reputation (user principal)) (let ((rep (unwrap-rslt! (get-seller-reputation user) (err u0)))) (ok rep)))
+
+;; Auction system maps
+(define-map auctions
+  { id: uint }
+  { listing-id: uint
+  , seller: principal
+  , reserve-price: uint
+  , highest-bid: uint
+  , highest-bidder: (optional principal)
+  , end-block: uint
+  , settled: bool
+  })
