@@ -1,14 +1,32 @@
+import { useEffect } from 'react';
 import { WalletButton } from './WalletButton';
+import { useStacks } from '../hooks/useStacks';
+import { useAppKit } from '@reown/appkit/react';
+import { useAccount } from 'wagmi';
 
 interface LandingPageProps {
   onEnter: () => void;
 }
 
 export const LandingPage = ({ onEnter }: LandingPageProps) => {
+  const { isConnected, isAppKitConnected } = useStacks();
+  const { address, isConnected: isAppKitAccountConnected } = useAccount();
+
+  // Auto-navigate to marketplace when wallet is connected
+  useEffect(() => {
+    const walletConnected = isConnected || isAppKitConnected || isAppKitAccountConnected;
+    if (walletConnected) {
+      // Small delay to ensure connection is fully established
+      const timer = setTimeout(() => {
+        onEnter();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected, isAppKitConnected, isAppKitAccountConnected, onEnter]);
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#f7f7f2',
+      backgroundColor: '#ffffff',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'stretch',
@@ -36,27 +54,41 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
         }
       `}</style>
 
-      {/* Top navigation like Marketplace Naija */}
-      <header style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e5e5de' }}>
+      {/* Navigation bar */}
+      <header style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e0e0e0' }}>
         <div style={{
           maxWidth: '1200px',
           margin: '0 auto',
-          padding: '0.75rem 1.5rem',
+          padding: '1rem 1.5rem',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between'
+          gap: '1rem',
+          flexWrap: 'wrap'
         }}>
-          {/* Logo / brand */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {/* Logo */}
+          <div 
+            onClick={() => window.location.reload()}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem', 
+              marginRight: 'auto',
+              cursor: 'pointer',
+              transition: 'opacity 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+            title="Click to refresh"
+          >
             <div style={{
               width: '32px',
               height: '32px',
               borderRadius: '8px',
-              border: '2px solid #1a7f1a',
+              border: '2px solid #333333',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#1a7f1a',
+              color: '#333333',
               fontSize: '1.1rem'
             }}>
               🛍️
@@ -64,128 +96,70 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
             <span style={{
               fontSize: '1.4rem',
               fontWeight: 700,
-              color: '#145214'
+              color: '#333333'
             }}>
-              StackMart Naija
+              StackMart
             </span>
           </div>
 
-          {/* Right actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', fontSize: '0.95rem' }}>
-            <button
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#145214',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-              onClick={onEnter}
-            >
-              Sign in or Register
-            </button>
-            <button
-              onClick={onEnter}
-              style={{
-                backgroundColor: '#26a626',
-                border: 'none',
-                color: '#ffffff',
-                fontWeight: 600,
-                padding: '0.6rem 1.4rem',
-                borderRadius: '999px',
-                cursor: 'pointer',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
-              }}
-            >
-              + Place Your Listing
-            </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#145214' }}>
-              <span>My Account</span>
-              <span style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '50%',
-                border: '1px solid #cfd8cf',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '0.9rem'
-              }}>
-                🔔
-              </span>
-            </div>
-          </div>
-        </div>
+          {/* Marketplace Link */}
+          <button
+            onClick={onEnter}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#333333',
+              fontSize: '0.95rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              padding: '0.5rem 1rem',
+              borderRadius: '4px',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            Marketplace
+          </button>
 
-        {/* Green search bar */}
-        <div style={{ backgroundColor: '#2bbe2b', padding: '0.9rem 0' }}>
-          <div style={{
-            maxWidth: '1200px',
-            margin: '0 auto',
-            padding: '0 1.5rem',
-            display: 'grid',
-            gridTemplateColumns: '3fr 2fr 2fr auto',
-            gap: '0.5rem',
-          }}>
+          {/* Category */}
+          <select
+            style={{
+              borderRadius: '4px',
+              border: '1px solid #e0e0e0',
+              padding: '0.75rem 1rem',
+              fontSize: '0.95rem',
+              appearance: 'none',
+              backgroundColor: '#ffffff',
+              cursor: 'pointer',
+              minWidth: '150px'
+            }}
+            defaultValue=""
+          >
+            <option value="" disabled>Category</option>
+            <option value="nfts">NFTs</option>
+            <option value="music">Music Rights</option>
+            <option value="art">Digital Art</option>
+            <option value="templates">Code & Templates</option>
+          </select>
+
+          {/* Search */}
+          <div style={{ display: 'flex', alignItems: 'center', flex: '1', minWidth: '200px', maxWidth: '400px' }}>
             <input
-              placeholder="What are you looking for?"
+              placeholder="Search..."
               style={{
                 borderRadius: '4px',
-                border: 'none',
-                padding: '0.6rem 0.75rem',
-                fontSize: '0.95rem'
+                border: '1px solid #e0e0e0',
+                padding: '0.75rem 1rem',
+                fontSize: '0.95rem',
+                width: '100%'
               }}
             />
-            <select
-              style={{
-                borderRadius: '4px',
-                border: 'none',
-                padding: '0.6rem 0.75rem',
-                fontSize: '0.95rem',
-                appearance: 'none'
-              }}
-              defaultValue=""
-            >
-              <option value="" disabled>Select Category</option>
-              <option value="nfts">NFTs</option>
-              <option value="music">Music Rights</option>
-              <option value="art">Digital Art</option>
-              <option value="templates">Code & Templates</option>
-            </select>
-            <select
-              style={{
-                borderRadius: '4px',
-                border: 'none',
-                padding: '0.6rem 0.75rem',
-                fontSize: '0.95rem',
-                appearance: 'none'
-              }}
-              defaultValue=""
-            >
-              <option value="" disabled>Location</option>
-              <option value="lagos">Lagos</option>
-              <option value="abuja">Abuja</option>
-              <option value="portharcourt">Port Harcourt</option>
-              <option value="others">Other Cities</option>
-            </select>
-            <button
-              onClick={onEnter}
-              style={{
-                backgroundColor: '#176a17',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '4px',
-                padding: '0.6rem 1.4rem',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.4rem',
-                cursor: 'pointer'
-              }}
-            >
-              🔍 Search
-            </button>
+          </div>
+
+          {/* Connect Wallet - Rightmost */}
+          <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto' }}>
+            <WalletButton />
           </div>
         </div>
       </header>
@@ -195,37 +169,37 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
         width: '100%',
         zIndex: 1,
         textAlign: 'center',
-        margin: '3rem auto 0',
+        margin: '4rem auto 0',
         padding: '0 1.5rem'
       }}>
         {/* Logo/Title */}
         <div className="fade-in-up" style={{
-          marginBottom: '2rem'
+          marginBottom: '3rem'
         }}>
           <h1 style={{
             fontSize: 'clamp(3rem, 8vw, 5rem)',
             fontWeight: 'bold',
-            color: '#1a1a1a',
-            marginBottom: '1rem',
-            textShadow: '0 4px 20px rgba(0,0,0,0.3)',
+            color: '#333333',
+            marginBottom: '1.5rem',
             letterSpacing: '-0.02em'
           }}>
             🛍️ StackMart
           </h1>
           <p style={{
             fontSize: 'clamp(1.2rem, 3vw, 1.8rem)',
-            color: '#3b3b3b',
-            marginBottom: '0.5rem',
+            color: '#666666',
+            marginBottom: '1rem',
             fontWeight: 300
           }}>
             Decentralized Marketplace on Stacks
           </p>
           <p style={{
             fontSize: 'clamp(1rem, 2vw, 1.2rem)',
-            color: '#555555',
+            color: '#666666',
             maxWidth: '600px',
             margin: '0 auto',
-            lineHeight: '1.6'
+            lineHeight: '1.7',
+            padding: '0 1rem'
           }}>
             Buy and sell digital goods as NFTs with built-in licensing, escrow, and automatic royalty splits
           </p>
@@ -236,8 +210,8 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
           gap: '1.5rem',
-          marginBottom: '3rem',
-          marginTop: '3rem'
+          marginBottom: '4rem',
+          marginTop: '2rem'
         }}>
           {[
             { icon: '🔐', title: 'Secure Escrow', desc: 'Smart contracts handle payments safely' },
@@ -250,8 +224,8 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
             <div key={idx} style={{
               background: '#ffffff',
               borderRadius: '16px',
-              padding: '1.5rem',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
+              padding: '2rem 1.5rem',
+              border: '1px solid #e0e0e0',
               transition: 'transform 0.3s, box-shadow 0.3s',
               cursor: 'pointer'
             }}
@@ -264,21 +238,21 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
               e.currentTarget.style.boxShadow = 'none';
             }}
             >
-              <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
                 {feature.icon}
               </div>
               <h3 style={{
-                color: '#1a1a1a',
+                color: '#333333',
                 fontSize: '1.2rem',
                 fontWeight: '600',
-                marginBottom: '0.5rem'
+                marginBottom: '0.75rem'
               }}>
                 {feature.title}
               </h3>
               <p style={{
-                color: '#555555',
+                color: '#666666',
                 fontSize: '0.9rem',
-                lineHeight: '1.5'
+                lineHeight: '1.6'
               }}>
                 {feature.desc}
               </p>
@@ -292,7 +266,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
           flexDirection: 'column',
           alignItems: 'center',
           gap: '1.5rem',
-          marginTop: '2rem'
+          marginTop: '3rem'
         }}>
           <div style={{
             display: 'flex',
@@ -331,17 +305,17 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
             <div style={{
               background: '#ffffff',
               borderRadius: '12px',
-              padding: '0.5rem 1rem',
-              border: '1px solid rgba(255, 255, 255, 0.2)'
+              padding: '0.75rem 1.25rem',
+              border: '1px solid #e0e0e0'
             }}>
               <WalletButton />
             </div>
           </div>
 
           <p style={{
-            color: '#555555',
+            color: '#666666',
             fontSize: '0.9rem',
-            marginTop: '1rem'
+            marginTop: '0.5rem'
           }}>
             Connect your wallet to start buying and selling digital goods
           </p>
@@ -351,8 +325,9 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
         <div className="fade-in-up" style={{
           display: 'flex',
           justifyContent: 'center',
-          gap: '3rem',
-          marginTop: '4rem',
+          gap: '4rem',
+          marginTop: '5rem',
+          marginBottom: '3rem',
           flexWrap: 'wrap'
         }}>
           {[
@@ -361,19 +336,20 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
             { label: 'Smart Contracts', value: 'Clarity' }
           ].map((stat, idx) => (
             <div key={idx} style={{
-              textAlign: 'center'
+              textAlign: 'center',
+              padding: '0 1rem'
             }}>
               <div style={{
                 fontSize: '2rem',
                 fontWeight: 'bold',
-                color: '#1a1a1a',
-                marginBottom: '0.25rem'
+                color: '#333333',
+                marginBottom: '0.5rem'
               }}>
                 {stat.value}
               </div>
               <div style={{
                 fontSize: '0.9rem',
-                color: '#555555'
+                color: '#666666'
               }}>
                 {stat.label}
               </div>
