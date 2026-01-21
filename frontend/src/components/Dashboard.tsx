@@ -7,6 +7,8 @@ import { WalletBalanceDisplay } from './WalletBalanceDisplay';
 import { NetworkSwitcher } from './NetworkSwitcher';
 import { TransactionHistory } from './TransactionHistory';
 import { useAllWallets } from '../hooks/useAllWallets';
+import { Wishlist } from './Wishlist';
+import { formatSTX } from '../utils/validation';
 
 export const Dashboard = () => {
     const { userSession } = useStacks();
@@ -131,16 +133,16 @@ export const Dashboard = () => {
                                     </div>
                                 </div>
                             </div>
-
-            {/* Wishlist Section */}
-                        <div style={{ marginBottom: '2rem' }}>
-                            <Wishlist />
-                        </div>
                         ) : (
-                        <div className="skeleton-text" />
+                            <div className="skeleton-text" />
                         )}
                     </div>
                 </div>
+            </div>
+
+            {/* Wishlist Section */}
+            <div style={{ marginBottom: '2rem' }}>
+                <Wishlist />
             </div>
 
             {/* Active Listings */}
@@ -175,11 +177,15 @@ export const Dashboard = () => {
             {/* Transaction History - Multi-Chain */}
             <section>
                 <h2>Recent Activity</h2>
-                {isAnyConnected && (
-                    <div style={{ marginBottom: '1.5rem' }}>
+                <div style={{ marginBottom: '1.5rem' }}>
+                    {isAnyConnected ? (
                         <TransactionHistory />
-                    </div>
-                )}
+                    ) : (
+                        <div className="info-box">
+                            Connect a wallet to view transaction history
+                        </div>
+                    )}
+                </div>
                 {isLoading ? (
                     <LoadingSkeleton count={1} />
                 ) : history.length > 0 ? (

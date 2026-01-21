@@ -41,10 +41,6 @@
 (define-constant ERR_INVALID_LISTING (err u400))
 (define-constant ERR_BUNDLE_EMPTY (err u400))
 (define-data-var admin principal tx-sender)
-(define-constant ERR_AUCTION_ENDED (err u406))
-(define-constant ERR_AUCTION_NOT_ENDED (err u407))
-(define-constant ERR_BID_TOO_LOW (err u408))
-(define-constant MIN_BID_INCREMENT_BIPS u500) ;; 5%
 (define-data-var admin principal tx-sender)
 (define-constant ERR_ALREADY_WISHLISTED (err u405))
 
@@ -978,79 +974,3 @@
 (define-read-only (get-formatted-reputation (user principal)) (let ((rep (unwrap-rslt! (get-seller-reputation user) (err u0)))) (ok rep)))
 (define-read-only (get-listings-by-seller (seller principal)) (ok "Logic for filtering map needed or iterate IDs"))
 (define-read-only (get-formatted-reputation (user principal)) (let ((rep (unwrap-rslt! (get-seller-reputation user) (err u0)))) (ok rep)))
-
-;; Auction system maps
-(define-map auctions
-  { id: uint }
-  { listing-id: uint
-  , seller: principal
-  , reserve-price: uint
-  , highest-bid: uint
-  , highest-bidder: (optional principal)
-  , end-block: uint
-  , settled: bool
-  })
-
-(define-public (create-auction (listing-id uint) (reserve-price uint) (duration uint))
-  (let (
-    (listing (unwrap! (map-get? listings { id: listing-id }) ERR_NOT_FOUND))
-    (auction-id (var-get next-auction-id))
-  )
-    (asserts! (is-eq (get seller listing) tx-sender) ERR_NOT_OWNER)
-    (map-set auctions
-      { id: auction-id }
-      { listing-id: listing-id
-      , seller: tx-sender
-      , reserve-price: reserve-price
-      , highest-bid: u0
-      , highest-bidder: none
-      , end-block: (+ burn-block-height duration)
-      , settled: false
-      })
-    (var-set next-auction-id (+ auction-id u1))
-    (ok auction-id)))
-(define-read-only (get-auction (id uint)) (match (map-get? auctions { id: id }) auction (ok auction) ERR_NOT_FOUND))
-
-(define-public (place-bid (auction-id uint) (amount uint))
-  (let (
-    (auction (unwrap! (map-get? auctions { id: auction-id }) ERR_NOT_FOUND))
-    (highest-bid (get highest-bid auction))
-  )
-    (asserts! (< burn-block-height (get end-block auction)) ERR_AUCTION_ENDED)
-    (asserts! (>= amount (get reserve-price auction)) ERR_BID_TOO_LOW)
-    (asserts! (> amount (+ highest-bid (/ (* highest-bid MIN_BID_INCREMENT_BIPS) BPS_DENOMINATOR))) ERR_BID_TOO_LOW)
-    
-    ;; Refund previous bidder if exists
-    (match (get highest-bidder auction)
-      prev-bidder (try! (stx-transfer? highest-bid (as-contract tx-sender) prev-bidder))
-      true)
-    
-    ;; Escrow new bid
-    (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
-    
-    (map-set auctions { id: auction-id }
-      (merge auction { highest-bid: amount, highest-bidder: (some tx-sender) }))
-    (ok true)))
-
-(define-public (settle-auction (auction-id uint))
-  (let (
-    (auction (unwrap! (map-get? auctions { id: auction-id }) ERR_NOT_FOUND))
-    (listing-id (get listing-id auction))
-    (listing (unwrap! (map-get? listings { id: listing-id }) ERR_NOT_FOUND))
-  )
-    (asserts! (>= burn-block-height (get end-block auction)) ERR_AUCTION_NOT_ENDED)
-    (asserts! (not (get settled auction)) ERR_INVALID_STATE)
-    
-    (match (get highest-bidder auction)
-      winner (begin
-        ;; Transfer NFT to winner (simplified logic for script)
-        (map-delete listings { id: listing-id })
-        ;; Transfer funds to seller (minus fees logic would go here)
-        (try! (stx-transfer? (get highest-bid auction) (as-contract tx-sender) (get seller auction)))
-        true)
-      ;; No bids, auction just ends
-      true)
-    
-    (map-set auctions { id: auction-id } (merge auction { settled: true }))
-    (ok true)))
-(define-read-only (get-auctions-by-seller (seller principal)) (ok "Logic for filtering auctions needed"))
