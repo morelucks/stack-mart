@@ -221,3 +221,17 @@
     (var-set total-staked (+ (var-get total-staked) amount))
     (print {action: "stake-tokens", staker: tx-sender, amount: amount})
     (ok true)))
+;; Unstake tokens
+(define-public (unstake-tokens (amount uint))
+  (let ((current-staked (default-to u0 (map-get? staked-balances tx-sender))))
+    (asserts! (> amount u0) err-invalid-amount)
+    (asserts! (>= current-staked amount) err-insufficient-balance)
+    (try! (as-contract (ft-transfer? smt-token amount tx-sender tx-sender)))
+    (map-set staked-balances tx-sender (- current-staked amount))
+    (var-set total-staked (- (var-get total-staked) amount))
+    (print {action: "unstake-tokens", staker: tx-sender, amount: amount})
+    (ok true)))
+
+;; Get staked balance
+(define-read-only (get-staked-balance (staker principal))
+  (default-to u0 (map-get? staked-balances staker)))
