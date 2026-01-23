@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { WalletButton } from './components/WalletButton';
 import { LandingPage } from './components/LandingPage';
 import { CreateListing } from './components/CreateListing';
@@ -41,7 +41,7 @@ function App() {
     setShowLanding(true);
   };
 
-  const loadListings = async () => {
+  const loadListings = useCallback(async () => {
     setIsLoadingListings(true);
     setError(null);
     try {
@@ -72,18 +72,26 @@ function App() {
     } finally {
       setIsLoadingListings(false);
     }
-  };
+  }, [getAllListings]);
 
   // Load listings from contract - with error handling
+  const hasLoadedListingsRef = useRef(false);
+  
   useEffect(() => {
     // Only load listings if not on landing page
-    if (showLanding) return;
+    if (showLanding) {
+      hasLoadedListingsRef.current = false;
+      return;
+    }
+    
+    // Only load once per marketplace entry
+    if (hasLoadedListingsRef.current) return;
+    
+    hasLoadedListingsRef.current = true;
     
     // Use setTimeout to ensure component is mounted
     const timer = setTimeout(() => {
-      try {
-        loadListings();
-      } catch (err) {
+      loadListings().catch((err) => {
         console.error('Error in loadListings:', err);
         setError('Failed to initialize listings');
         // Set mock data as fallback
@@ -94,19 +102,18 @@ function App() {
           'royalty-bips': 500,
           'royalty-recipient': 'SP3J75H6FYTCJJW5R0CHVGWDFN8JPZP3DD4DPJRSP',
         }]);
-      }
+      });
     }, 100);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showLanding]);
+  }, [showLanding, loadListings]);
 
-  const enterMarketplace = () => {
+  const enterMarketplace = useCallback(() => {
     setShowLanding(false);
     // Always go to listings (home) tab when entering marketplace
     setActiveTab('listings');
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  }, []);
 
   // Show landing page first (after all hooks are called)
   if (showLanding) {
@@ -135,11 +142,12 @@ function App() {
                 width: '32px',
                 height: '32px',
                 borderRadius: '8px',
-                border: '2px solid #333333',
+                background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+              boxShadow: '0 2px 8px rgba(0, 102, 255, 0.2)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#333333',
+                color: '#ffffff',
                 fontSize: '1.1rem'
               }}>
                 🛍️
@@ -147,7 +155,10 @@ function App() {
               <span style={{
                 fontSize: '1.4rem',
                 fontWeight: 700,
-                color: '#333333'
+                background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
               }}>
                 StackMart
               </span>
@@ -186,19 +197,23 @@ function App() {
               width: '32px',
               height: '32px',
               borderRadius: '8px',
-              border: '2px solid #333333',
+              background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#333333',
-              fontSize: '1.1rem'
+              color: '#ffffff',
+              fontSize: '1.1rem',
+              boxShadow: '0 2px 8px rgba(0, 102, 255, 0.2)'
             }}>
               🛍️
             </div>
             <span style={{
               fontSize: '1.4rem',
               fontWeight: 700,
-              color: '#333333'
+              background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
             }}>
               StackMart
             </span>
@@ -213,12 +228,13 @@ function App() {
         {/* Sidebar Navigation */}
         <aside style={{
           width: '250px',
-          backgroundColor: '#f8f9fa',
-          borderRight: '1px solid #e0e0e0',
+          backgroundColor: '#ffffff',
+          borderRight: '1px solid var(--gray-200)',
           padding: '1.5rem 0',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.25rem'
+          gap: '0.25rem',
+          boxShadow: '2px 0 8px rgba(0, 0, 0, 0.04)'
         }}>
           <button
             className={`btn ${activeTab === 'dashboard' ? 'btn-primary' : 'btn-outline'}`}

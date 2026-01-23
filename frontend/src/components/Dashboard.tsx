@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStacks } from '../hooks/useStacks';
 import { useContract } from '../hooks/useContract';
 import { ListingCard } from './ListingCard';
@@ -59,7 +59,20 @@ export const Dashboard = () => {
         }
     };
 
+    const hasLoadedRef = useRef(false);
+    const lastPrincipalRef = useRef<string | null>(null);
+
     useEffect(() => {
+        const principal = getPrincipal();
+        // Only load if principal changed or hasn't loaded yet
+        if (principal && principal !== lastPrincipalRef.current) {
+            lastPrincipalRef.current = principal;
+            hasLoadedRef.current = false;
+        }
+        
+        if (!principal || hasLoadedRef.current) return;
+        
+        hasLoadedRef.current = true;
         loadData();
     }, [userSession]);
 

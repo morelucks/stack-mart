@@ -40,19 +40,24 @@ export const useChainhooks = () => {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       // If the request is being blocked by a browser extension or network error,
       // disable further polling to avoid spamming the console.
-      if (errorMessage.toLowerCase().includes('failed to fetch') || errorMessage.toLowerCase().includes('network')) {
+      const isNetworkError = errorMessage.toLowerCase().includes('failed to fetch') || 
+                            errorMessage.toLowerCase().includes('network') ||
+                            errorMessage.toLowerCase().includes('connection refused') ||
+                            (err instanceof TypeError && err.message.includes('fetch'));
+      
+      if (isNetworkError) {
         setDisabled(true);
       }
       setError(errorMessage);
-      // Only log non-network errors to avoid noisy console output
-      if (!errorMessage.toLowerCase().includes('failed to fetch')) {
+      // Suppress console errors for network/connection issues (already shown in UI)
+      if (!isNetworkError) {
         // eslint-disable-next-line no-console
         console.error('Error fetching chainhook events:', err);
       }
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [disabled]);
 
   // Fetch events for a specific transaction
   const fetchEventByTxid = useCallback(async (txid: string) => {

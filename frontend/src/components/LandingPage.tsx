@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { WalletButton } from './WalletButton';
 import { useStacks } from '../hooks/useStacks';
 import { useAppKit } from '@reown/appkit/react';
@@ -11,11 +11,13 @@ interface LandingPageProps {
 export const LandingPage = ({ onEnter }: LandingPageProps) => {
   const { isConnected, isAppKitConnected } = useStacks();
   const { address, isConnected: isAppKitAccountConnected } = useAccount();
+  const hasNavigated = useRef(false);
 
   // Auto-navigate to marketplace when wallet is connected
   useEffect(() => {
     const walletConnected = isConnected || isAppKitConnected || isAppKitAccountConnected;
-    if (walletConnected) {
+    if (walletConnected && !hasNavigated.current) {
+      hasNavigated.current = true;
       // Small delay to ensure connection is fully established
       const timer = setTimeout(() => {
         onEnter();
@@ -55,7 +57,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
       `}</style>
 
       {/* Navigation bar */}
-      <header style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e0e0e0' }}>
+      <header style={{ backgroundColor: '#ffffff', borderBottom: '1px solid var(--gray-200)', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)' }}>
         <div style={{
           maxWidth: '1200px',
           margin: '0 auto',
@@ -84,19 +86,23 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
               width: '32px',
               height: '32px',
               borderRadius: '8px',
-              border: '2px solid #333333',
+              background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#333333',
-              fontSize: '1.1rem'
+              color: '#ffffff',
+              fontSize: '1.1rem',
+              boxShadow: '0 2px 8px rgba(0, 102, 255, 0.2)'
             }}>
               🛍️
             </div>
             <span style={{
               fontSize: '1.4rem',
               fontWeight: 700,
-              color: '#333333'
+              background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
             }}>
               StackMart
             </span>
@@ -108,16 +114,22 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
             style={{
               background: 'none',
               border: 'none',
-              color: '#333333',
+              color: 'var(--gray-700)',
               fontSize: '0.95rem',
               fontWeight: 600,
               cursor: 'pointer',
               padding: '0.5rem 1rem',
-              borderRadius: '4px',
-              transition: 'background-color 0.2s'
+              borderRadius: '8px',
+              transition: 'all 0.2s'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--gray-100)';
+              e.currentTarget.style.color = 'var(--primary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = 'var(--gray-700)';
+            }}
           >
             Marketplace
           </button>
@@ -179,7 +191,10 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
           <h1 style={{
             fontSize: 'clamp(3rem, 8vw, 5rem)',
             fontWeight: 'bold',
-            color: '#333333',
+            background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
             marginBottom: '1.5rem',
             letterSpacing: '-0.02em'
           }}>
@@ -187,15 +202,15 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
           </h1>
           <p style={{
             fontSize: 'clamp(1.2rem, 3vw, 1.8rem)',
-            color: '#666666',
+            color: 'var(--gray-700)',
             marginBottom: '1rem',
-            fontWeight: 300
+            fontWeight: 500
           }}>
             Decentralized Marketplace on Stacks
           </p>
           <p style={{
             fontSize: 'clamp(1rem, 2vw, 1.2rem)',
-            color: '#666666',
+            color: 'var(--gray-600)',
             maxWidth: '600px',
             margin: '0 auto',
             lineHeight: '1.7',
@@ -225,24 +240,27 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
               background: '#ffffff',
               borderRadius: '16px',
               padding: '2rem 1.5rem',
-              border: '1px solid #e0e0e0',
-              transition: 'transform 0.3s, box-shadow 0.3s',
-              cursor: 'pointer'
+              border: '1px solid var(--gray-200)',
+              transition: 'all 0.3s ease',
+              cursor: 'pointer',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-5px)';
-              e.currentTarget.style.boxShadow = '0 10px 30px rgba(0,0,0,0.2)';
+              e.currentTarget.style.transform = 'translateY(-8px)';
+              e.currentTarget.style.boxShadow = '0 12px 40px rgba(0, 102, 255, 0.15)';
+              e.currentTarget.style.borderColor = 'var(--primary-light)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
+              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+              e.currentTarget.style.borderColor = 'var(--gray-200)';
             }}
             >
               <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
                 {feature.icon}
               </div>
               <h3 style={{
-                color: '#333333',
+                color: 'var(--gray-900)',
                 fontSize: '1.2rem',
                 fontWeight: '600',
                 marginBottom: '0.75rem'
@@ -250,7 +268,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
                 {feature.title}
               </h3>
               <p style={{
-                color: '#666666',
+                color: 'var(--gray-600)',
                 fontSize: '0.9rem',
                 lineHeight: '1.6'
               }}>
@@ -282,21 +300,21 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
                 fontSize: '1.2rem',
                 fontWeight: '600',
                 color: '#ffffff',
-                background: '#26a626',
+                background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)',
                 border: 'none',
                 borderRadius: '12px',
                 cursor: 'pointer',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
-                transition: 'transform 0.2s, box-shadow 0.2s',
+                boxShadow: '0 4px 20px rgba(0, 102, 255, 0.3)',
+                transition: 'all 0.2s ease',
                 minWidth: '200px'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.05)';
-                e.currentTarget.style.boxShadow = '0 6px 30px rgba(0,0,0,0.3)';
+                e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                e.currentTarget.style.boxShadow = '0 8px 30px rgba(0, 102, 255, 0.4)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.2)';
+                e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 102, 255, 0.3)';
               }}
             >
               🚀 Enter Marketplace
@@ -342,14 +360,17 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
               <div style={{
                 fontSize: '2rem',
                 fontWeight: 'bold',
-                color: '#333333',
+                background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
                 marginBottom: '0.5rem'
               }}>
                 {stat.value}
               </div>
               <div style={{
                 fontSize: '0.9rem',
-                color: '#666666'
+                color: 'var(--gray-600)'
               }}>
                 {stat.label}
               </div>

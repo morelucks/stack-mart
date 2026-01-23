@@ -1,7 +1,7 @@
 import { useAccount } from 'wagmi';
 import { useStacks } from './useStacks';
 import { getStacksAddress } from '../utils/validation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 interface Transaction {
   hash: string;
@@ -34,11 +34,21 @@ export const useTransactionHistory = () => {
       setIsLoading(true);
       try {
         // In production, use a block explorer API or indexer
-        // For now, this is a placeholder
-        await fetch(
-          `https://api.etherscan.io/api?module=account&action=txlist&address=${appKitAddress}&startblock=0&endblock=99999999&sort=desc&apikey=YourApiKeyToken`
-        );
-        // Note: This requires an API key and proper error handling
+        // For now, this is a placeholder - transactions will be fetched via indexer or block explorer
+        // Note: This requires an API key from environment variables and proper error handling
+        // For demo purposes, we'll use empty array
+        const apiKey = import.meta.env.VITE_ETHERSCAN_API_KEY;
+        if (apiKey) {
+          const response = await fetch(
+            `https://api.etherscan.io/api?module=account&action=txlist&address=${appKitAddress}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`
+          );
+          if (response.ok) {
+            const data = await response.json();
+            // Parse and set transactions if API returns data
+            // For now, keeping empty array as placeholder
+            // TODO: Parse data.result and map to Transaction[] format
+          }
+        }
         // For demo purposes, we'll use empty array
         setAppKitTransactions([]);
       } catch (error) {
@@ -53,45 +63,71 @@ export const useTransactionHistory = () => {
   }, [appKitConnected, appKitAddress]);
 
   // Fetch Stacks transactions
+  const lastTxAddressRef = useRef<string | null>(null);
+  const txFetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
+    // Clear any pending fetch
+    if (txFetchTimeoutRef.current) {
+      clearTimeout(txFetchTimeoutRef.current);
+    }
+
     const fetchStacksTransactions = async () => {
       if (!stacksConnected || !userData) {
         setStacksTransactions([]);
+        lastTxAddressRef.current = null;
         return;
       }
 
       const address = getStacksAddress(userData);
       if (!address) {
         setStacksTransactions([]);
+        lastTxAddressRef.current = null;
         return;
       }
 
-      setIsLoading(true);
-      try {
-        const response = await fetch(
-          `https://api.hiro.so/extended/v1/address/${address}/transactions?limit=10`
-        );
-        
-        if (response.ok) {
-          const data = await response.json();
-          const transactions: Transaction[] = data.results?.map((tx: any) => ({
-            hash: tx.tx_id,
-            chain: 'stacks',
-            type: tx.tx_type === 'contract_call' ? 'contract' : 'other',
-            timestamp: tx.burn_block_time,
-            status: tx.tx_status === 'success' ? 'confirmed' : 'pending',
-          })) || [];
-          setStacksTransactions(transactions);
-        }
-      } catch (error) {
-        console.error('Error fetching Stacks transactions:', error);
-        setStacksTransactions([]);
-      } finally {
-        setIsLoading(false);
+      // Skip if same address
+      if (address === lastTxAddressRef.current) {
+        return;
       }
+
+      lastTxAddressRef.current = address;
+      setIsLoading(true);
+      
+      // Debounce the fetch
+      txFetchTimeoutRef.current = setTimeout(async () => {
+        try {
+          const response = await fetch(
+            `https://api.hiro.so/extended/v1/address/${address}/transactions?limit=10`
+          );
+          
+          if (response.ok) {
+            const data = await response.json();
+            const transactions: Transaction[] = data.results?.map((tx: any) => ({
+              hash: tx.tx_id,
+              chain: 'stacks',
+              type: tx.tx_type === 'contract_call' ? 'contract' : 'other',
+              timestamp: tx.burn_block_time,
+              status: tx.tx_status === 'success' ? 'confirmed' : 'pending',
+            })) || [];
+            setStacksTransactions(transactions);
+          }
+        } catch (error) {
+          console.error('Error fetching Stacks transactions:', error);
+          setStacksTransactions([]);
+        } finally {
+          setIsLoading(false);
+        }
+      }, 500); // 500ms debounce
     };
 
     fetchStacksTransactions();
+
+    return () => {
+      if (txFetchTimeoutRef.current) {
+        clearTimeout(txFetchTimeoutRef.current);
+      }
+    };
   }, [stacksConnected, userData]);
 
   const allTransactions = [
