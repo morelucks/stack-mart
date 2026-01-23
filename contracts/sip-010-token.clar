@@ -111,3 +111,11 @@
     (map-set token-allowances {owner: tx-sender, spender: spender} (+ current-allowance amount))
     (print {action: "increase-allowance", owner: tx-sender, spender: spender, amount: amount})
     (ok true)))
+;; Decrease allowance
+(define-public (decrease-allowance (spender principal) (amount uint))
+  (let ((current-allowance (default-to u0 (map-get? token-allowances {owner: tx-sender, spender: spender}))))
+    (asserts! (> amount u0) err-invalid-amount)
+    (asserts! (>= current-allowance amount) err-insufficient-balance)
+    (map-set token-allowances {owner: tx-sender, spender: spender} (- current-allowance amount))
+    (print {action: "decrease-allowance", owner: tx-sender, spender: spender, amount: amount})
+    (ok true)))
