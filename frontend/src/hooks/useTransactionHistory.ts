@@ -22,16 +22,24 @@ export const useTransactionHistory = () => {
   const [appKitTransactions, setAppKitTransactions] = useState<Transaction[]>([]);
   const [stacksTransactions, setStacksTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const loadingRef = useRef({ appKit: false, stacks: false });
+
+  const updateLoadingState = () => {
+    setIsLoading(loadingRef.current.appKit || loadingRef.current.stacks);
+  };
 
   // Fetch AppKit transactions
   useEffect(() => {
     const fetchAppKitTransactions = async () => {
       if (!appKitConnected || !appKitAddress) {
         setAppKitTransactions([]);
+        loadingRef.current.appKit = false;
+        updateLoadingState();
         return;
       }
 
-      setIsLoading(true);
+      loadingRef.current.appKit = true;
+      updateLoadingState();
       try {
         // In production, use a block explorer API or indexer
         // For now, this is a placeholder - transactions will be fetched via indexer or block explorer
@@ -55,7 +63,8 @@ export const useTransactionHistory = () => {
         console.error('Error fetching AppKit transactions:', error);
         setAppKitTransactions([]);
       } finally {
-        setIsLoading(false);
+        loadingRef.current.appKit = false;
+        updateLoadingState();
       }
     };
 
@@ -75,50 +84,44 @@ export const useTransactionHistory = () => {
     const fetchStacksTransactions = async () => {
       if (!stacksConnected || !userData) {
         setStacksTransactions([]);
-        lastTxAddressRef.current = null;
+        loadingRef.current.stacks = false;
+        updateLoadingState();
         return;
       }
 
       const address = getStacksAddress(userData);
       if (!address) {
         setStacksTransactions([]);
-        lastTxAddressRef.current = null;
+        loadingRef.current.stacks = false;
+        updateLoadingState();
         return;
       }
 
-      // Skip if same address
-      if (address === lastTxAddressRef.current) {
-        return;
-      }
-
-      lastTxAddressRef.current = address;
-      setIsLoading(true);
-      
-      // Debounce the fetch
-      txFetchTimeoutRef.current = setTimeout(async () => {
-        try {
-          const response = await fetch(
-            `https://api.hiro.so/extended/v1/address/${address}/transactions?limit=10`
-          );
-          
-          if (response.ok) {
-            const data = await response.json();
-            const transactions: Transaction[] = data.results?.map((tx: any) => ({
-              hash: tx.tx_id,
-              chain: 'stacks',
-              type: tx.tx_type === 'contract_call' ? 'contract' : 'other',
-              timestamp: tx.burn_block_time,
-              status: tx.tx_status === 'success' ? 'confirmed' : 'pending',
-            })) || [];
-            setStacksTransactions(transactions);
-          }
-        } catch (error) {
-          console.error('Error fetching Stacks transactions:', error);
-          setStacksTransactions([]);
-        } finally {
-          setIsLoading(false);
+      loadingRef.current.stacks = true;
+      updateLoadingState();
+      try {
+        const response = await fetch(
+          `https://api.hiro.so/extended/v1/address/${address}/transactions?limit=50`
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          const transactions: Transaction[] = data.results?.map((tx: any) => ({
+            hash: tx.tx_id,
+            chain: 'stacks',
+            type: tx.tx_type === 'contract_call' ? 'contract' : 'other',
+            timestamp: tx.burn_block_time,
+            status: tx.tx_status === 'success' ? 'confirmed' : 'pending',
+          })) || [];
+          setStacksTransactions(transactions);
         }
-      }, 500); // 500ms debounce
+      } catch (error) {
+        console.error('Error fetching Stacks transactions:', error);
+        setStacksTransactions([]);
+      } finally {
+        loadingRef.current.stacks = false;
+        updateLoadingState();
+      }
     };
 
     fetchStacksTransactions();

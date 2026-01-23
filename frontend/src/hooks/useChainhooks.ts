@@ -40,17 +40,12 @@ export const useChainhooks = () => {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       // If the request is being blocked by a browser extension or network error,
       // disable further polling to avoid spamming the console.
-      const isNetworkError = errorMessage.toLowerCase().includes('failed to fetch') || 
-                            errorMessage.toLowerCase().includes('network') ||
-                            errorMessage.toLowerCase().includes('connection refused') ||
-                            (err instanceof TypeError && err.message.includes('fetch'));
-      
-      if (isNetworkError) {
+      if (errorMessage.toLowerCase().includes('failed to fetch') || errorMessage.toLowerCase().includes('network')) {
         setDisabled(true);
       }
       setError(errorMessage);
-      // Suppress console errors for network/connection issues (already shown in UI)
-      if (!isNetworkError) {
+      // Only log non-network errors to avoid noisy console output
+      if (!errorMessage.toLowerCase().includes('failed to fetch')) {
         // eslint-disable-next-line no-console
         console.error('Error fetching chainhook events:', err);
       }

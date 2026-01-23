@@ -107,13 +107,13 @@ function App() {
     return () => clearTimeout(timer);
   }, [showLanding, loadListings]);
 
-  const enterMarketplace = useCallback(() => {
+  const enterMarketplace = () => {
     setShowLanding(false);
     // Always go to listings (home) tab when entering marketplace
     setActiveTab('listings');
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  };
 
   // Show landing page first (after all hooks are called)
   if (showLanding) {
@@ -142,12 +142,11 @@ function App() {
                 width: '32px',
                 height: '32px',
                 borderRadius: '8px',
-                background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-              boxShadow: '0 2px 8px rgba(0, 102, 255, 0.2)',
+                border: '2px solid #333333',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#ffffff',
+                color: '#333333',
                 fontSize: '1.1rem'
               }}>
                 🛍️
@@ -155,10 +154,7 @@ function App() {
               <span style={{
                 fontSize: '1.4rem',
                 fontWeight: 700,
-                background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text'
+                color: '#333333'
               }}>
                 StackMart
               </span>
@@ -197,23 +193,19 @@ function App() {
               width: '32px',
               height: '32px',
               borderRadius: '8px',
-              background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+              border: '2px solid #333333',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#ffffff',
-              fontSize: '1.1rem',
-              boxShadow: '0 2px 8px rgba(0, 102, 255, 0.2)'
+              color: '#333333',
+              fontSize: '1.1rem'
             }}>
               🛍️
             </div>
             <span style={{
               fontSize: '1.4rem',
               fontWeight: 700,
-              background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text'
+              color: '#333333'
             }}>
               StackMart
             </span>
@@ -228,13 +220,12 @@ function App() {
         {/* Sidebar Navigation */}
         <aside style={{
           width: '250px',
-          backgroundColor: '#ffffff',
-          borderRight: '1px solid var(--gray-200)',
+          backgroundColor: '#f8f9fa',
+          borderRight: '1px solid #e0e0e0',
           padding: '1.5rem 0',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.25rem',
-          boxShadow: '2px 0 8px rgba(0, 0, 0, 0.04)'
+          gap: '0.25rem'
         }}>
           <button
             className={`btn ${activeTab === 'dashboard' ? 'btn-primary' : 'btn-outline'}`}
@@ -455,6 +446,7 @@ function App() {
 
         {activeTab === 'dashboard' && (
           <Dashboard />
+{activeTab === "auctions" && ( <section><h2>🔨 Active Auctions</h2><div className="grid grid-cols-1">No active auctions found.</div></section> )}
         )}
 
           <section>
