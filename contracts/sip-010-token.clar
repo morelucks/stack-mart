@@ -125,3 +125,8 @@
     (map-delete token-allowances {owner: tx-sender, spender: spender})
     (print {action: "revoke-allowance", owner: tx-sender, spender: spender})
     (ok true)))
+;; Batch transfer function
+(define-public (batch-transfer (transfers (list 200 {recipient: principal, amount: uint, memo: (optional (buff 34))})))
+  (begin
+    (asserts! (> (len transfers) u0) err-invalid-amount)
+    (fold check-and-transfer transfers (ok true))))
