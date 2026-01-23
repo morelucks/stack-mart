@@ -119,3 +119,9 @@
     (map-set token-allowances {owner: tx-sender, spender: spender} (- current-allowance amount))
     (print {action: "decrease-allowance", owner: tx-sender, spender: spender, amount: amount})
     (ok true)))
+;; Revoke allowance (set to zero)
+(define-public (revoke-allowance (spender principal))
+  (begin
+    (map-delete token-allowances {owner: tx-sender, spender: spender})
+    (print {action: "revoke-allowance", owner: tx-sender, spender: spender})
+    (ok true)))
