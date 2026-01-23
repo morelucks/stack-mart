@@ -1,7 +1,9 @@
 import { useCallback, useRef } from 'react';
-import { CONTRACT_ID, API_URL } from '../config/contract';
+import { CONTRACT_ID, API_URL, NETWORK } from '../config/contract';
 import { useStacks } from './useStacks';
 import { getStacksAddress } from '../utils/validation';
+import { uintCV, AnchorMode, PostConditionMode, makeContractCall } from '@stacks/transactions';
+import { STACKS_MAINNET, STACKS_TESTNET } from '@stacks/network';
 
 export const useContract = () => {
   const { userSession } = useStacks();
@@ -388,10 +390,27 @@ export const useContract = () => {
     }
   }, [API_URL, CONTRACT_ID]);
 
-  const toggleWishlist = useCallback(async (listingId: number) => { const userData = userSession.loadUserData(); const txOptions = { contractAddress: CONTRACT_ID.split(".")[0], contractName: CONTRACT_ID.split(".")[1], functionName: "toggle-wishlist", functionArgs: [uintCV(listingId)], senderKey: userData.appPrivateKey, network, anchorMode: AnchorMode.Any, postConditionMode: PostConditionMode.Allow, }; return await makeContractCall(txOptions);  const userData = userSession.loadUserData(); const txOptions = { contractAddress: CONTRACT_ID.split(".")[0], contractName: CONTRACT_ID.split(".")[1], functionName: "toggle-wishlist", functionArgs: [uintCV(listingId)], senderKey: userData.appPrivateKey, network, anchorMode: AnchorMode.Any, postConditionMode: PostConditionMode.Allow, }; return await makeContractCall(txOptions); 
+  const toggleWishlist = useCallback(async (listingId: number) => {
     console.log('Toggling wishlist for:', listingId);
-    return Promise.resolve({ success: true });
-  }, []);
+    try {
+      const userData = userSession.loadUserData() as any;
+      const network = NETWORK === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET;
+      const txOptions = {
+        contractAddress: CONTRACT_ID.split(".")[0],
+        contractName: CONTRACT_ID.split(".")[1],
+        functionName: "toggle-wishlist",
+        functionArgs: [uintCV(listingId)],
+        senderKey: userData?.appPrivateKey || userData?.profile?.stxPrivateKey,
+        network,
+        anchorMode: AnchorMode.Any,
+        postConditionMode: PostConditionMode.Allow,
+      };
+      return await makeContractCall(txOptions);
+    } catch (error) {
+      console.error('Error toggling wishlist:', error);
+      throw error;
+    }
+  }, [userSession]);
 
   return {
     getListing,
@@ -406,10 +425,10 @@ export const useContract = () => {
     getBuyerReputation,
     getWishlist,
     getPriceHistory,
-getListingsBySeller: (seller: string) => Promise.resolve([]), isWishlisted: (listingId: number) => Promise.resolve(false),
-setMarketplaceFee: (fee: number) => Promise.resolve({success: true}), setFeeRecipient: (recipient: string) => Promise.resolve({success: true}),
-getListingsBySeller: (seller: string) => Promise.resolve([]), isWishlisted: (listingId: number) => Promise.resolve(false),
-setMarketplaceFee: (fee: number) => Promise.resolve({success: true}), setFeeRecipient: (recipient: string) => Promise.resolve({success: true}),
+    getListingsBySeller: (seller: string) => Promise.resolve([]),
+    isWishlisted: (listingId: number) => Promise.resolve(false),
+    setMarketplaceFee: (fee: number) => Promise.resolve({success: true}),
+    setFeeRecipient: (recipient: string) => Promise.resolve({success: true}),
     toggleWishlist,
   };
 };
