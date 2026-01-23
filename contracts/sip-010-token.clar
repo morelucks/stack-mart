@@ -29,3 +29,29 @@
 
 ;; Initialize contract with total supply to contract owner
 (map-set token-balances contract-owner total-supply)
+
+;; SIP-010 Standard Functions
+
+;; Get token name
+(define-read-only (get-name)
+  (ok token-name))
+
+;; Get token symbol  
+(define-read-only (get-symbol)
+  (ok token-symbol))
+
+;; Get token decimals
+(define-read-only (get-decimals)
+  (ok token-decimals))
+
+;; Get token balance of a principal
+(define-read-only (get-balance (who principal))
+  (ok (default-to u0 (map-get? token-balances who))))
+
+;; Get total supply
+(define-read-only (get-total-supply)
+  (ok (var-get token-total-supply)))
+
+;; Get token URI
+(define-read-only (get-token-uri)
+  (ok token-uri))
