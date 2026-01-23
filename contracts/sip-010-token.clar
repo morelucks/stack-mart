@@ -84,3 +84,14 @@
     (try! (ft-burn? smt-token amount owner))
     (print {action: "burn", owner: owner, amount: amount})
     (ok true)))
+;; Get allowance
+(define-read-only (get-allowance (owner principal) (spender principal))
+  (ok (default-to u0 (map-get? token-allowances {owner: owner, spender: spender}))))
+
+;; Approve function
+(define-public (approve (spender principal) (amount uint))
+  (begin
+    (asserts! (> amount u0) err-invalid-amount)
+    (map-set token-allowances {owner: tx-sender, spender: spender} amount)
+    (print {action: "approve", owner: tx-sender, spender: spender, amount: amount})
+    (ok true)))
