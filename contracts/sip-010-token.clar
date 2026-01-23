@@ -193,3 +193,14 @@
     (var-set transfer-fee-rate new-rate)
     (print {action: "set-transfer-fee-rate", new-rate: new-rate})
     (ok true)))
+;; Set fee recipient (owner only)
+(define-public (set-fee-recipient (new-recipient principal))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (var-set fee-recipient new-recipient)
+    (print {action: "set-fee-recipient", new-recipient: new-recipient})
+    (ok true)))
+
+;; Calculate transfer fee
+(define-read-only (calculate-fee (amount uint))
+  (/ (* amount (var-get transfer-fee-rate)) u10000))
