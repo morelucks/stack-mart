@@ -76,3 +76,11 @@
     (try! (ft-mint? smt-token amount recipient))
     (print {action: "mint", recipient: recipient, amount: amount})
     (ok true)))
+;; Burn function
+(define-public (burn (amount uint) (owner principal))
+  (begin
+    (asserts! (or (is-eq owner tx-sender) (is-eq owner contract-caller)) err-not-token-owner)
+    (asserts! (> amount u0) err-invalid-amount)
+    (try! (ft-burn? smt-token amount owner))
+    (print {action: "burn", owner: owner, amount: amount})
+    (ok true)))
