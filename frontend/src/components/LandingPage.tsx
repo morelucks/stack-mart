@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { WalletButton } from './WalletButton';
 import { useStacks } from '../hooks/useStacks';
 import { useAppKit } from '@reown/appkit/react';
@@ -12,15 +12,28 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
   const { isConnected, isAppKitConnected } = useStacks();
   const { address, isConnected: isAppKitAccountConnected } = useAccount();
 
-  // Auto-navigate to marketplace when wallet is connected
+  // Auto-navigate to marketplace when wallet is connected (only once per session)
   useEffect(() => {
     const walletConnected = isConnected || isAppKitConnected || isAppKitAccountConnected;
-    if (walletConnected) {
+    
+    // Check if we've already auto-navigated in this session
+    const hasAutoNavigated = sessionStorage.getItem('landingPageAutoNavigated') === 'true';
+    
+    // Only auto-navigate if:
+    // 1. Wallet is connected
+    // 2. We haven't already auto-navigated in this session
+    if (walletConnected && !hasAutoNavigated) {
+      sessionStorage.setItem('landingPageAutoNavigated', 'true');
       // Small delay to ensure connection is fully established
       const timer = setTimeout(() => {
         onEnter();
       }, 500);
       return () => clearTimeout(timer);
+    }
+    
+    // Reset the flag if wallet disconnects (so it can auto-navigate again if they reconnect)
+    if (!walletConnected && hasAutoNavigated) {
+      sessionStorage.removeItem('landingPageAutoNavigated');
     }
   }, [isConnected, isAppKitConnected, isAppKitAccountConnected, onEnter]);
   return (
