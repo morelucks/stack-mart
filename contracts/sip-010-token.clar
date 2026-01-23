@@ -286,3 +286,19 @@
     (var-set emergency-mode true)
     (print {action: "enable-emergency-mode"})
     (ok true)))
+;; Disable emergency mode (owner only)
+(define-public (disable-emergency-mode)
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (var-set emergency-mode false)
+    (print {action: "disable-emergency-mode"})
+    (ok true)))
+
+;; Emergency withdraw (emergency mode only)
+(define-public (emergency-withdraw (amount uint) (recipient principal))
+  (begin
+    (asserts! (var-get emergency-mode) err-emergency-only)
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (try! (as-contract (ft-transfer? smt-token amount tx-sender recipient)))
+    (print {action: "emergency-withdraw", amount: amount, recipient: recipient})
+    (ok true)))
