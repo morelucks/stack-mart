@@ -149,3 +149,10 @@
     (var-set contract-paused true)
     (print {action: "pause-contract"})
     (ok true)))
+;; Unpause contract (owner only)
+(define-public (unpause-contract)
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (var-set contract-paused false)
+    (print {action: "unpause-contract"})
+    (ok true)))
