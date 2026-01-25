@@ -673,3 +673,104 @@ describe("SIP-010 Token Contract", () => {
       expect(calculatedFee.result).toBe(Cl.uint(10000)); // 1% of 1M = 10K
     });
   });
+  describe("Staking Functions", () => {
+    beforeEach(() => {
+      // Transfer some tokens to wallet1 for staking tests
+      simnet.callPublicFn(
+        "sip-010-token",
+        "transfer",
+        [
+          Cl.uint(10000000),
+          Cl.principal(deployer),
+          Cl.principal(wallet1),
+          Cl.none()
+        ],
+        deployer
+      );
+    });
+
+    it("should stake tokens successfully", () => {
+      const stakeAmount = 5000000;
+      
+      const response = simnet.callPublicFn(
+        "sip-010-token",
+        "stake-tokens",
+        [Cl.uint(stakeAmount)],
+        wallet1
+      );
+      
+      expect(response.result).toBeOk(Cl.bool(true));
+      
+      // Check staked balance
+      const stakedBalance = simnet.callReadOnlyFn(
+        "sip-010-token",
+        "get-staked-balance",
+        [Cl.principal(wallet1)],
+        deployer
+      );
+      expect(stakedBalance.result).toBe(Cl.uint(stakeAmount));
+    });
+
+    it("should unstake tokens successfully", () => {
+      const stakeAmount = 5000000;
+      const unstakeAmount = 2000000;
+      
+      // First stake
+      simnet.callPublicFn(
+        "sip-010-token",
+        "stake-tokens",
+        [Cl.uint(stakeAmount)],
+        wallet1
+      );
+      
+      // Then unstake
+      const response = simnet.callPublicFn(
+        "sip-010-token",
+        "unstake-tokens",
+        [Cl.uint(unstakeAmount)],
+        wallet1
+      );
+      
+      expect(response.result).toBeOk(Cl.bool(true));
+      
+      // Check remaining staked balance
+      const stakedBalance = simnet.callReadOnlyFn(
+        "sip-010-token",
+        "get-staked-balance",
+        [Cl.principal(wallet1)],
+        deployer
+      );
+      expect(stakedBalance.result).toBe(Cl.uint(stakeAmount - unstakeAmount));
+    });
+
+    it("should reject staking with insufficient balance", () => {
+      const response = simnet.callPublicFn(
+        "sip-010-token",
+        "stake-tokens",
+        [Cl.uint(20000000)], // More than wallet1 has
+        wallet1
+      );
+      
+      expect(response.result).toBeErr(Cl.uint(102)); // ERR-INSUFFICIENT-BALANCE
+    });
+
+    it("should reject unstaking more than staked", () => {
+      // Stake some amount first
+      simnet.callPublicFn(
+        "sip-010-token",
+        "stake-tokens",
+        [Cl.uint(3000000)],
+        wallet1
+      );
+      
+      // Try to unstake more
+      const response = simnet.callPublicFn(
+        "sip-010-token",
+        "unstake-tokens",
+        [Cl.uint(5000000)],
+        wallet1
+      );
+      
+      expect(response.result).toBeErr(Cl.uint(102)); // ERR-INSUFFICIENT-BALANCE
+    });
+  });
