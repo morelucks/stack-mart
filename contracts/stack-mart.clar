@@ -360,6 +360,8 @@
             (try! (stx-transfer? royalty tx-sender royalty-recipient))
             true)
           (try! (stx-transfer? seller-share tx-sender seller))
+          ;; Update marketplace metrics
+          (update-marketplace-metrics price marketplace-fee)
           (map-delete listings { id: id })
           (ok true)))
     ERR_NOT_FOUND))
