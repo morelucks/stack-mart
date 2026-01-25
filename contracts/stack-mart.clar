@@ -157,9 +157,34 @@
   , weight: uint
   })
 
-(define-map wishlists
-  { user: principal }
-  { listing-ids: (list 100 uint) })
+;; Enhanced listing creation with description
+(define-public (create-listing-enhanced 
+    (price uint) 
+    (royalty-bips uint) 
+    (royalty-recipient principal)
+    (description (string-ascii 1000))
+    (category (string-ascii 50))
+    (tags (list 10 (string-ascii 20))))
+  (begin
+    (asserts! (<= royalty-bips MAX_ROYALTY_BIPS) ERR_BAD_ROYALTY)
+    (asserts! (<= (len description) MAX_LISTING_DESCRIPTION_LENGTH) ERR_INVALID_LISTING)
+    (let ((id (var-get next-id)))
+      (begin
+        (map-set listings
+          { id: id }
+          { seller: tx-sender
+          , price: price
+          , royalty-bips: royalty-bips
+          , royalty-recipient: royalty-recipient
+          , nft-contract: none
+          , token-id: none
+          , license-terms: (some description) })
+        (map-set listing-categories
+          { listing-id: id }
+          { category: category
+          , tags: tags })
+        (var-set next-id (+ id u1))
+        (ok id)))))
 
 ;; Price history tracking
 (define-map price-history
