@@ -774,3 +774,126 @@ describe("SIP-010 Token Contract", () => {
       expect(response.result).toBeErr(Cl.uint(102)); // ERR-INSUFFICIENT-BALANCE
     });
   });
+  describe("Governance Functions", () => {
+    beforeEach(() => {
+      // Mint enough tokens to deployer for proposal threshold
+      simnet.callPublicFn(
+        "sip-010-token",
+        "mint",
+        [Cl.uint(2000000000), Cl.principal(deployer)],
+        deployer
+      );
+      
+      // Transfer some tokens to wallet1 for voting
+      simnet.callPublicFn(
+        "sip-010-token",
+        "transfer",
+        [
+          Cl.uint(5000000),
+          Cl.principal(deployer),
+          Cl.principal(wallet1),
+          Cl.none()
+        ],
+        deployer
+      );
+    });
+
+    it("should create proposal successfully", () => {
+      const response = simnet.callPublicFn(
+        "sip-010-token",
+        "create-proposal",
+        [
+          Cl.stringAscii("Test Proposal"),
+          Cl.stringAscii("This is a test proposal for governance"),
+          Cl.uint(100) // 100 blocks voting period
+        ],
+        deployer
+      );
+      
+      expect(response.result).toBeOk(Cl.uint(1)); // First proposal ID
+      
+      // Check proposal details
+      const proposal = simnet.callReadOnlyFn(
+        "sip-010-token",
+        "get-proposal",
+        [Cl.uint(1)],
+        deployer
+      );
+      
+      expect(proposal.result).toBeSome();
+    });
+
+    it("should reject proposal creation with insufficient balance", () => {
+      const response = simnet.callPublicFn(
+        "sip-010-token",
+        "create-proposal",
+        [
+          Cl.stringAscii("Test Proposal"),
+          Cl.stringAscii("This should fail"),
+          Cl.uint(100)
+        ],
+        wallet2 // Doesn't have enough tokens
+      );
+      
+      expect(response.result).toBeErr(Cl.uint(102)); // ERR-INSUFFICIENT-BALANCE
+    });
+
+    it("should vote on proposal successfully", () => {
+      // Create proposal first
+      simnet.callPublicFn(
+        "sip-010-token",
+        "create-proposal",
+        [
+          Cl.stringAscii("Test Proposal"),
+          Cl.stringAscii("Test proposal description"),
+          Cl.uint(100)
+        ],
+        deployer
+      );
+      
+      // Vote on proposal
+      const response = simnet.callPublicFn(
+        "sip-010-token",
+        "vote-on-proposal",
+        [
+          Cl.uint(1), // Proposal ID
+          Cl.bool(true) // Vote for
+        ],
+        wallet1
+      );
+      
+      expect(response.result).toBeOk(Cl.bool(true));
+    });
+
+    it("should reject double voting", () => {
+      // Create proposal
+      simnet.callPublicFn(
+        "sip-010-token",
+        "create-proposal",
+        [
+          Cl.stringAscii("Test Proposal"),
+          Cl.stringAscii("Test proposal description"),
+          Cl.uint(100)
+        ],
+        deployer
+      );
+      
+      // First vote
+      simnet.callPublicFn(
+        "sip-010-token",
+        "vote-on-proposal",
+        [Cl.uint(1), Cl.bool(true)],
+        wallet1
+      );
+      
+      // Second vote should fail
+      const response = simnet.callPublicFn(
+        "sip-010-token",
+        "vote-on-proposal",
+        [Cl.uint(1), Cl.bool(false)],
+        wallet1
+      );
+      
+      expect(response.result).toBeErr(Cl.uint(105)); // Already voted
+    });
+  });
