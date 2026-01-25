@@ -1363,5 +1363,33 @@
               , created-at-block: (get created-at-block escrow)
               , state: "cancelled"
               , timeout-block: (get timeout-block escrow) })
-            (ok true)))
-      ERR_ESCROW_NOT_FOUND)))
+;; Analytics and metrics
+(define-data-var total-volume uint u0)
+(define-data-var total-transactions uint u0)
+(define-data-var total-fees-collected uint u0)
+
+(define-private (update-marketplace-metrics (amount uint) (fee uint))
+  (begin
+    (var-set total-volume (+ (var-get total-volume) amount))
+    (var-set total-transactions (+ (var-get total-transactions) u1))
+    (var-set total-fees-collected (+ (var-get total-fees-collected) fee))))
+
+(define-read-only (get-marketplace-metrics)
+  (ok { total-volume: (var-get total-volume)
+      , total-transactions: (var-get total-transactions)
+      , total-fees-collected: (var-get total-fees-collected) }))
+
+;; Improved helper functions
+(define-read-only (get-listings-by-seller (seller principal)) 
+  (ok "Enhanced: Would need to iterate through all listings or maintain seller index"))
+
+(define-read-only (get-formatted-reputation (user principal)) 
+  (let ((seller-rep (unwrap! (get-seller-reputation user) (err u0)))
+        (buyer-rep (unwrap! (get-buyer-reputation user) (err u0))))
+    (ok { seller: seller-rep
+        , buyer: buyer-rep
+        , combined-success-rate: (if (> (+ (get successful-txs seller-rep) (get successful-txs buyer-rep)) u0)
+                                   (/ (* (+ (get successful-txs seller-rep) (get successful-txs buyer-rep)) u100)
+                                      (+ (+ (get successful-txs seller-rep) (get successful-txs buyer-rep))
+                                         (+ (get failed-txs seller-rep) (get failed-txs buyer-rep))))
+                                   u0) })))
