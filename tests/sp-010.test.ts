@@ -131,3 +131,117 @@ describe("SIP-010 Token Contract", () => {
       expect(response.result).toBeErr(Cl.uint(101)); // ERR-NOT-TOKEN-OWNER
     });
   });
+  describe("Mint Function", () => {
+    it("should mint tokens successfully by owner", () => {
+      const mintAmount = 5000000; // 5 tokens
+      
+      const response = simnet.callPublicFn(
+        "sip-010-token",
+        "mint",
+        [
+          Cl.uint(mintAmount),
+          Cl.principal(wallet1)
+        ],
+        deployer
+      );
+      
+      expect(response.result).toBeOk(Cl.bool(true));
+      
+      // Check recipient balance
+      const balance = simnet.callReadOnlyFn("sip-010-token", "get-balance", [Cl.principal(wallet1)], deployer);
+      expect(balance.result).toBeOk(Cl.uint(mintAmount));
+    });
+
+    it("should reject mint by non-owner", () => {
+      const response = simnet.callPublicFn(
+        "sip-010-token",
+        "mint",
+        [
+          Cl.uint(1000000),
+          Cl.principal(wallet1)
+        ],
+        wallet2 // Non-owner
+      );
+      
+      expect(response.result).toBeErr(Cl.uint(100)); // ERR-OWNER-ONLY
+    });
+
+    it("should reject zero amount mint", () => {
+      const response = simnet.callPublicFn(
+        "sip-010-token",
+        "mint",
+        [
+          Cl.uint(0),
+          Cl.principal(wallet1)
+        ],
+        deployer
+      );
+      
+      expect(response.result).toBeErr(Cl.uint(103)); // ERR-INVALID-AMOUNT
+    });
+  });
+
+  describe("Burn Function", () => {
+    beforeEach(() => {
+      // Transfer some tokens to wallet1 for burning tests
+      simnet.callPublicFn(
+        "sip-010-token",
+        "transfer",
+        [
+          Cl.uint(10000000),
+          Cl.principal(deployer),
+          Cl.principal(wallet1),
+          Cl.none()
+        ],
+        deployer
+      );
+    });
+
+    it("should burn tokens successfully", () => {
+      const burnAmount = 2000000;
+      
+      const response = simnet.callPublicFn(
+        "sip-010-token",
+        "burn",
+        [
+          Cl.uint(burnAmount),
+          Cl.principal(wallet1)
+        ],
+        wallet1
+      );
+      
+      expect(response.result).toBeOk(Cl.bool(true));
+      
+      // Check balance after burn
+      const balance = simnet.callReadOnlyFn("sip-010-token", "get-balance", [Cl.principal(wallet1)], deployer);
+      expect(balance.result).toBeOk(Cl.uint(10000000 - burnAmount));
+    });
+
+    it("should reject unauthorized burn", () => {
+      const response = simnet.callPublicFn(
+        "sip-010-token",
+        "burn",
+        [
+          Cl.uint(1000000),
+          Cl.principal(wallet1)
+        ],
+        wallet2 // Wrong sender
+      );
+      
+      expect(response.result).toBeErr(Cl.uint(101)); // ERR-NOT-TOKEN-OWNER
+    });
+
+    it("should reject zero amount burn", () => {
+      const response = simnet.callPublicFn(
+        "sip-010-token",
+        "burn",
+        [
+          Cl.uint(0),
+          Cl.principal(wallet1)
+        ],
+        wallet1
+      );
+      
+      expect(response.result).toBeErr(Cl.uint(103)); // ERR-INVALID-AMOUNT
+    });
+  });
