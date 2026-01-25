@@ -468,6 +468,8 @@
                   (seller-share (- (- price royalty) marketplace-fee))
                  )
               (begin
+                ;; Transfer marketplace fee
+                (try! (stx-transfer? marketplace-fee tx-sender (var-get fee-recipient)))
                 ;; Transfer payments from escrow
                 ;; Note: In a full implementation, STX would be transferred from contract-held escrow
                 ;; For now, this is a placeholder - actual transfer requires contract to hold funds
