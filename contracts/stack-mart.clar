@@ -490,6 +490,8 @@
                       , rejected: false
                       , rejection-reason: none })
                   true)
+                ;; Update marketplace metrics
+                (update-marketplace-metrics price marketplace-fee)
                 ;; Update reputation - successful transaction
                 (update-reputation seller true price)
                 (update-reputation tx-sender true price)
