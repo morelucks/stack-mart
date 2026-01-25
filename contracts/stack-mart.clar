@@ -985,9 +985,141 @@
 (define-private (process-pack-purchases (listing-ids (list 20 uint)) (buyer principal))
   ;; Note: Simplified - in full implementation would process each listing
   true)
-(define-read-only (get-listings-by-seller (seller principal)) 
-  (ok "Placeholder: Logic for filtering map needed or iterate IDs"))
+;; Auction system
+(define-map auctions
+  { id: uint }
+  { listing-id: uint
+  , starting-price: uint
+  , current-bid: uint
+  , highest-bidder: (optional principal)
+  , end-block: uint
+  , ended: bool
+  })
 
-(define-read-only (get-formatted-reputation (user principal)) 
-  (let ((rep (unwrap! (get-seller-reputation user) (err u0)))) 
-    (ok rep)))
+(define-map auction-bids
+  { auction-id: uint
+  , bidder: principal }
+  { amount: uint
+  , block-height: uint
+  })
+
+;; Create an auction for a listing
+(define-public (create-auction (listing-id uint) (starting-price uint) (duration-blocks uint))
+  (match (map-get? listings { id: listing-id })
+    listing
+      (begin
+        (asserts! (is-eq tx-sender (get seller listing)) ERR_NOT_OWNER)
+        (let ((auction-id (var-get next-auction-id)))
+          (begin
+            (map-set auctions
+              { id: auction-id }
+              { listing-id: listing-id
+              , starting-price: starting-price
+              , current-bid: starting-price
+              , highest-bidder: none
+              , end-block: (+ burn-block-height duration-blocks)
+              , ended: false })
+            (var-set next-auction-id (+ auction-id u1))
+            (ok auction-id))))
+    ERR_NOT_FOUND))
+
+;; Place a bid on an auction
+(define-public (place-bid (auction-id uint) (bid-amount uint))
+  (match (map-get? auctions { id: auction-id })
+    auction
+      (begin
+        (asserts! (not (get ended auction)) ERR_INVALID_STATE)
+        (asserts! (< burn-block-height (get end-block auction)) ERR_TIMEOUT_NOT_REACHED)
+        (asserts! (> bid-amount (get current-bid auction)) ERR_INVALID_LISTING)
+        ;; Transfer bid amount (in full implementation, would be held in escrow)
+        (try! (stx-transfer? bid-amount tx-sender (as-contract tx-sender)))
+        ;; Refund previous highest bidder if exists
+        (match (get highest-bidder auction)
+          previous-bidder
+            (try! (as-contract (stx-transfer? (get current-bid auction) tx-sender previous-bidder)))
+          true)
+        ;; Update auction with new highest bid
+        (map-set auctions
+          { id: auction-id }
+          { listing-id: (get listing-id auction)
+          , starting-price: (get starting-price auction)
+          , current-bid: bid-amount
+          , highest-bidder: (some tx-sender)
+          , end-block: (get end-block auction)
+          , ended: false })
+        ;; Record bid
+        (map-set auction-bids
+          { auction-id: auction-id
+          , bidder: tx-sender }
+          { amount: bid-amount
+          , block-height: burn-block-height })
+        (ok true))
+    ERR_NOT_FOUND))
+
+;; End an auction and transfer to winner
+(define-public (end-auction (auction-id uint))
+  (match (map-get? auctions { id: auction-id })
+    auction
+      (begin
+        (asserts! (not (get ended auction)) ERR_INVALID_STATE)
+        (asserts! (>= burn-block-height (get end-block auction)) ERR_TIMEOUT_NOT_REACHED)
+        (match (get highest-bidder auction)
+          winner
+            (match (map-get? listings { id: (get listing-id auction) })
+              listing
+                (let ((price (get current-bid auction))
+                      (royalty-bips (get royalty-bips listing))
+                      (seller (get seller listing))
+                      (royalty-recipient (get royalty-recipient listing))
+                      (royalty (/ (* price royalty-bips) BPS_DENOMINATOR))
+                      (marketplace-fee (/ (* price (var-get marketplace-fee-bips)) BPS_DENOMINATOR))
+                      (seller-share (- (- price royalty) marketplace-fee)))
+                  (begin
+                    ;; Transfer payments
+                    (try! (as-contract (stx-transfer? marketplace-fee tx-sender (var-get fee-recipient))))
+                    (if (> royalty u0)
+                      (try! (as-contract (stx-transfer? royalty tx-sender royalty-recipient)))
+                      true)
+                    (try! (as-contract (stx-transfer? seller-share tx-sender seller)))
+                    ;; Transfer NFT if present
+                    (match (get nft-contract listing)
+                      nft-contract-principal
+                        (match (get token-id listing)
+                          token-id-value
+                            (match (contract-call? nft-contract-principal transfer token-id-value seller winner)
+                              (ok transfer-success)
+                                (asserts! transfer-success ERR_NFT_TRANSFER_FAILED)
+                              (err error-code)
+                                (err error-code))
+                          true)
+                      true)
+                    ;; Mark auction as ended
+                    (map-set auctions
+                      { id: auction-id }
+                      { listing-id: (get listing-id auction)
+                      , starting-price: (get starting-price auction)
+                      , current-bid: (get current-bid auction)
+                      , highest-bidder: (some winner)
+                      , end-block: (get end-block auction)
+                      , ended: true })
+                    ;; Remove listing
+                    (map-delete listings { id: (get listing-id auction) })
+                    (ok true)))
+              ERR_NOT_FOUND)
+          ;; No bids - return listing to seller
+          (begin
+            (map-set auctions
+              { id: auction-id }
+              { listing-id: (get listing-id auction)
+              , starting-price: (get starting-price auction)
+              , current-bid: (get current-bid auction)
+              , highest-bidder: none
+              , end-block: (get end-block auction)
+              , ended: true })
+            (ok false))))
+    ERR_NOT_FOUND))
+
+(define-read-only (get-auction (auction-id uint))
+  (match (map-get? auctions { id: auction-id })
+    auction (ok auction)
+    ERR_NOT_FOUND))
