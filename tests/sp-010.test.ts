@@ -252,4 +252,96 @@ describe("SP-010 Token Contract", () => {
       expect(response.result).toBeOk(Cl.bool(true));
     });
   });
+
+  describe("Edge Cases and Boundary Testing", () => {
+    it("should handle maximum possible transfer amount", () => {
+      const response = simnet.callPublicFn(
+        "sp-010",
+        "transfer",
+        [
+          Cl.uint(INITIAL_SUPPLY), // Transfer entire supply
+          Cl.principal(deployer),
+          Cl.principal(wallet1),
+          Cl.none()
+        ],
+        deployer
+      );
+      
+      expect(response.result).toBeOk(Cl.bool(true));
+      
+      // Verify deployer has zero balance
+      const deployerBalance = simnet.callReadOnlyFn("sp-010", "get-balance", [Cl.principal(deployer)], deployer);
+      expect(deployerBalance.result).toBeOk(Cl.uint(0));
+      
+      // Verify wallet1 has entire supply
+      const wallet1Balance = simnet.callReadOnlyFn("sp-010", "get-balance", [Cl.principal(wallet1)], deployer);
+      expect(wallet1Balance.result).toBeOk(Cl.uint(INITIAL_SUPPLY));
+    });
+
+    it("should handle minimum transfer amount (1 micro-token)", () => {
+      const response = simnet.callPublicFn(
+        "sp-010",
+        "transfer",
+        [
+          Cl.uint(1), // Smallest possible amount
+          Cl.principal(deployer),
+          Cl.principal(wallet1),
+          Cl.none()
+        ],
+        deployer
+      );
+      
+      expect(response.result).toBeOk(Cl.bool(true));
+      
+      const wallet1Balance = simnet.callReadOnlyFn("sp-010", "get-balance", [Cl.principal(wallet1)], deployer);
+      expect(wallet1Balance.result).toBeOk(Cl.uint(1));
+    });
+
+    it("should maintain total supply invariant after transfers", () => {
+      // Perform multiple transfers
+      simnet.callPublicFn("sp-010", "transfer", [Cl.uint(ONE_TOKEN), Cl.principal(deployer), Cl.principal(wallet1), Cl.none()], deployer);
+      simnet.callPublicFn("sp-010", "transfer", [Cl.uint(HALF_TOKEN), Cl.principal(deployer), Cl.principal(wallet2), Cl.none()], deployer);
+      simnet.callPublicFn("sp-010", "transfer", [Cl.uint(ONE_TOKEN), Cl.principal(deployer), Cl.principal(wallet3), Cl.none()], deployer);
+      
+      // Check total supply remains unchanged
+      const totalSupply = simnet.callReadOnlyFn("sp-010", "get-total-supply", [], deployer);
+      expect(totalSupply.result).toBeOk(Cl.uint(INITIAL_SUPPLY));
+      
+      // Verify sum of all balances equals total supply
+      const deployerBalance = simnet.callReadOnlyFn("sp-010", "get-balance", [Cl.principal(deployer)], deployer);
+      const wallet1Balance = simnet.callReadOnlyFn("sp-010", "get-balance", [Cl.principal(wallet1)], deployer);
+      const wallet2Balance = simnet.callReadOnlyFn("sp-010", "get-balance", [Cl.principal(wallet2)], deployer);
+      const wallet3Balance = simnet.callReadOnlyFn("sp-010", "get-balance", [Cl.principal(wallet3)], deployer);
+      
+      const totalBalances = 
+        Number(deployerBalance.result.value.value) +
+        Number(wallet1Balance.result.value.value) +
+        Number(wallet2Balance.result.value.value) +
+        Number(wallet3Balance.result.value.value);
+      
+      expect(totalBalances).toBe(INITIAL_SUPPLY);
+    });
+  });
+
+  describe("Event Emission Testing", () => {
+    it("should emit transfer events", () => {
+      const response = simnet.callPublicFn(
+        "sp-010",
+        "transfer",
+        [
+          Cl.uint(ONE_TOKEN),
+          Cl.principal(deployer),
+          Cl.principal(wallet1),
+          Cl.none()
+        ],
+        deployer
+      );
+      
+      expect(response.result).toBeOk(Cl.bool(true));
+      
+      // Check that events were emitted (simnet captures print events)
+      expect(response.events).toBeDefined();
+      expect(response.events.length).toBeGreaterThan(0);
+    });
+  });
 });
