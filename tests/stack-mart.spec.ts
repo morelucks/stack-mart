@@ -478,3 +478,79 @@ describe("stack-mart wishlist functionality", () => {
     expect(wishlist.result).toBeOk(Cl.list([]));
   });
 });
+
+describe("stack-mart marketplace fee system", () => {
+  it("applies marketplace fee on direct purchase", () => {
+    // Create listing
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(10_000), Cl.uint(500), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    const sellerBefore = getStxBalance(seller);
+    const buyerBefore = getStxBalance(buyer);
+    const feeRecipientBefore = getStxBalance(deployer);
+
+    // Buy listing
+    const purchase = simnet.callPublicFn(
+      contractName,
+      "buy-listing",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    expect(purchase.result).toBeOk(Cl.bool(true));
+
+    // Verify marketplace fee (2.5% = 250 bips) was deducted
+    // Fee: 10000 * 0.025 = 250
+    // Royalty: 10000 * 0.05 = 500
+    // Seller receives: 10000 - 250 - 500 = 9250
+    expect(getStxBalance(seller)).toBe(sellerBefore + 9_250n);
+    expect(getStxBalance(feeRecipientBefore)).toBe(feeRecipientBefore + 250n);
+    expect(getStxBalance(buyer)).toBe(buyerBefore - 10_000n);
+  });
+
+  it("applies marketplace fee on escrow purchase completion", () => {
+    // Create listing
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(8_000), Cl.uint(400), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    // Buy with escrow
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing-escrow",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // Complete escrow flow
+    const deliveryHash = Cl.bufferFromHex("0000000000000000000000000000000000000000000000000000000000000005");
+    simnet.callPublicFn(
+      contractName,
+      "attest-delivery",
+      [Cl.uint(1), deliveryHash],
+      seller
+    );
+
+    const sellerBefore = getStxBalance(seller);
+    const feeRecipientBefore = getStxBalance(deployer);
+
+    simnet.callPublicFn(
+      contractName,
+      "confirm-receipt",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // Fee: 8000 * 0.025 = 200, Royalty: 8000 * 0.04 = 320
+    // Seller: 8000 - 200 - 320 = 7480
+    expect(getStxBalance(seller)).toBe(sellerBefore + 7_480n);
+    expect(getStxBalance(feeRecipientBefore)).toBe(feeRecipientBefore + 200n);
+  });
+});
