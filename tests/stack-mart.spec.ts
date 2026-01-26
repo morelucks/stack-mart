@@ -694,3 +694,95 @@ describe("stack-mart dispute resolution", () => {
     );
   });
 });
+
+describe("stack-mart dispute voting and resolution", () => {
+  it("allows staked users to vote on dispute", () => {
+    // Setup dispute with stakes
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(9_000), Cl.uint(900), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing-escrow",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "create-dispute",
+      [Cl.uint(1), Cl.stringAscii("Delivery delay")],
+      buyer
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "stake-on-dispute",
+      [Cl.uint(1), Cl.bool(true), Cl.uint(2_000)],
+      royaltyRecipient
+    );
+
+    // Vote on dispute
+    const voteResult = simnet.callPublicFn(
+      contractName,
+      "vote-on-dispute",
+      [Cl.uint(1), Cl.bool(true)],
+      royaltyRecipient
+    );
+
+    expect(voteResult.result).toBeOk(Cl.bool(true));
+  });
+
+  it("resolves dispute when majority votes are cast", () => {
+    // Create dispute with multiple stakes
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(12_000), Cl.uint(1200), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing-escrow",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "create-dispute",
+      [Cl.uint(1), Cl.stringAscii("Item damaged")],
+      buyer
+    );
+
+    // Multiple stakes and votes
+    simnet.callPublicFn(
+      contractName,
+      "stake-on-dispute",
+      [Cl.uint(1), Cl.bool(true), Cl.uint(3_000)],
+      royaltyRecipient
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "vote-on-dispute",
+      [Cl.uint(1), Cl.bool(true)],
+      royaltyRecipient
+    );
+
+    // Resolve dispute
+    const resolveResult = simnet.callPublicFn(
+      contractName,
+      "resolve-dispute",
+      [Cl.uint(1)],
+      deployer
+    );
+
+    expect(resolveResult.result).toBeOk(Cl.bool(true));
+  });
+});
