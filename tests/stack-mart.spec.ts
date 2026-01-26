@@ -885,3 +885,84 @@ describe("stack-mart error handling and edge cases", () => {
     expect(purchase.result).toBeErr(Cl.uint(404)); // Not found error
   });
 });
+
+describe("stack-mart reputation volume tracking", () => {
+  it("tracks total volume for seller reputation", () => {
+    // Create and complete multiple transactions
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(3_000), Cl.uint(300), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // Create second listing
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(4_000), Cl.uint(400), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing",
+      [Cl.uint(2)],
+      buyer
+    );
+
+    // Check seller reputation includes total volume
+    const sellerRep = simnet.callReadOnlyFn(
+      contractName,
+      "get-seller-reputation",
+      [Cl.principal(seller)],
+      deployer
+    );
+
+    expect(sellerRep.result).toBeOk(
+      Cl.tuple({
+        "successful-txs": Cl.uint(2),
+        "total-volume": Cl.uint(7_000),
+      })
+    );
+  });
+
+  it("tracks total volume for buyer reputation", () => {
+    // Create listings and buyer purchases them
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(2_500), Cl.uint(250), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // Check buyer reputation
+    const buyerRep = simnet.callReadOnlyFn(
+      contractName,
+      "get-buyer-reputation",
+      [Cl.principal(buyer)],
+      deployer
+    );
+
+    expect(buyerRep.result).toBeOk(
+      Cl.tuple({
+        "successful-txs": Cl.uint(1),
+        "total-volume": Cl.uint(2_500),
+      })
+    );
+  });
+});
