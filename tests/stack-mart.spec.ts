@@ -1083,3 +1083,91 @@ describe("stack-mart bundle purchase flow", () => {
     expect(getStxBalance(buyer)).toBe(buyerBefore - 5_100n);
   });
 });
+
+describe("stack-mart curated pack functionality", () => {
+  it("creates curated pack with multiple listings", () => {
+    // Create listings for pack
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(500), Cl.uint(50), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(1_000), Cl.uint(100), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(1_500), Cl.uint(150), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    // Create curated pack with fixed price
+    const packResult = simnet.callPublicFn(
+      contractName,
+      "create-pack",
+      [
+        Cl.list([Cl.uint(1), Cl.uint(2), Cl.uint(3)]),
+        Cl.uint(2_500), // Pack price
+      ],
+      seller
+    );
+
+    expect(packResult.result).toBeOk(Cl.uint(1));
+
+    // Verify pack was created
+    const pack = simnet.callReadOnlyFn(
+      contractName,
+      "get-pack",
+      [Cl.uint(1)],
+      deployer
+    );
+
+    expect(pack.result).toBeOk(
+      Cl.tuple({
+        "listing-ids": Cl.list([Cl.uint(1), Cl.uint(2), Cl.uint(3)]),
+        price: Cl.uint(2_500),
+        creator: Cl.principal(seller),
+      })
+    );
+  });
+
+  it("allows purchase of curated pack", () => {
+    // Setup pack
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(800), Cl.uint(80), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "create-pack",
+      [
+        Cl.list([Cl.uint(1)]),
+        Cl.uint(700), // Discounted pack price
+      ],
+      seller
+    );
+
+    const buyerBefore = getStxBalance(buyer);
+
+    // Purchase pack
+    const purchaseResult = simnet.callPublicFn(
+      contractName,
+      "buy-pack",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    expect(purchaseResult.result).toBeOk(Cl.bool(true));
+    expect(getStxBalance(buyer)).toBe(buyerBefore - 700n);
+  });
+});
