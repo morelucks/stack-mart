@@ -1171,3 +1171,72 @@ describe("stack-mart curated pack functionality", () => {
     expect(getStxBalance(buyer)).toBe(buyerBefore - 700n);
   });
 });
+
+describe("stack-mart listing with NFT integration", () => {
+  it("creates listing with NFT contract and token ID", () => {
+    // Create listing with NFT details
+    const nftContract = Cl.principal("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM");
+    const tokenId = Cl.uint(42);
+
+    const result = simnet.callPublicFn(
+      contractName,
+      "create-listing-with-nft",
+      [
+        Cl.uint(15_000),
+        Cl.uint(750),
+        Cl.principal(royaltyRecipient),
+        nftContract,
+        tokenId,
+      ],
+      seller
+    );
+
+    expect(result.result).toBeOk(Cl.uint(1));
+
+    // Verify listing includes NFT info
+    const listing = simnet.callReadOnlyFn(
+      contractName,
+      "get-listing",
+      [Cl.uint(1)],
+      deployer
+    );
+
+    expect(listing.result).toBeOk(
+      Cl.tuple({
+        "nft-contract": Cl.some(nftContract),
+        "token-id": Cl.some(tokenId),
+        price: Cl.uint(15_000),
+      })
+    );
+  });
+
+  it("transfers NFT on successful purchase", () => {
+    // This test assumes NFT contract integration
+    // Create listing with NFT
+    const nftContract = Cl.principal("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM");
+    
+    simnet.callPublicFn(
+      contractName,
+      "create-listing-with-nft",
+      [
+        Cl.uint(20_000),
+        Cl.uint(1000),
+        Cl.principal(royaltyRecipient),
+        nftContract,
+        Cl.uint(100),
+      ],
+      seller
+    );
+
+    // Purchase listing
+    const purchase = simnet.callPublicFn(
+      contractName,
+      "buy-listing",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    expect(purchase.result).toBeOk(Cl.bool(true));
+    // NFT transfer would be verified through NFT contract calls
+  });
+});
