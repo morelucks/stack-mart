@@ -786,3 +786,57 @@ describe("stack-mart dispute voting and resolution", () => {
     expect(resolveResult.result).toBeOk(Cl.bool(true));
   });
 });
+
+describe("stack-mart admin functions", () => {
+  it("allows admin to set marketplace fee", () => {
+    // Get current fee
+    const currentFee = simnet.callReadOnlyFn(
+      contractName,
+      "get-marketplace-fee",
+      [],
+      deployer
+    );
+
+    // Set new fee (3% = 300 bips)
+    const setFeeResult = simnet.callPublicFn(
+      contractName,
+      "set-marketplace-fee",
+      [Cl.uint(300)],
+      deployer
+    );
+
+    expect(setFeeResult.result).toBeOk(Cl.bool(true));
+
+    // Verify fee was updated
+    const newFee = simnet.callReadOnlyFn(
+      contractName,
+      "get-marketplace-fee",
+      [],
+      deployer
+    );
+
+    expect(newFee.result).toBeOk(Cl.uint(300));
+  });
+
+  it("prevents non-admin from setting marketplace fee", () => {
+    const setFeeResult = simnet.callPublicFn(
+      contractName,
+      "set-marketplace-fee",
+      [Cl.uint(400)],
+      seller
+    );
+
+    expect(setFeeResult.result).toBeErr(Cl.uint(403));
+  });
+
+  it("allows admin to set fee recipient", () => {
+    const setRecipientResult = simnet.callPublicFn(
+      contractName,
+      "set-fee-recipient",
+      [Cl.principal(royaltyRecipient)],
+      deployer
+    );
+
+    expect(setRecipientResult.result).toBeOk(Cl.bool(true));
+  });
+});
