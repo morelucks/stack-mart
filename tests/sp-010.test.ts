@@ -19,7 +19,17 @@ const HALF_TOKEN = 500000; // 0.5 token with 6 decimals
  * SP-010 Token Contract Test Suite
  * 
  * Comprehensive tests for SIP-010 compliant fungible token
- * covering all functionality and edge cases.
+ * covering all functionality, edge cases, security validations,
+ * event emissions, and performance characteristics.
+ * 
+ * Test Coverage:
+ * - Metadata functions (name, symbol, decimals, URI)
+ * - Balance and supply queries
+ * - Transfer functionality with all validation
+ * - Error handling and edge cases
+ * - Event emission verification
+ * - Gas optimization and performance
+ * - Security boundary testing
  */
 describe("SP-010 Token Contract", () => {
   beforeEach(() => {
