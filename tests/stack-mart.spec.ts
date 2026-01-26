@@ -599,3 +599,98 @@ describe("stack-mart price history tracking", () => {
     expect(priceHistory.result).toBeErr(Cl.uint(404));
   });
 });
+
+describe("stack-mart dispute resolution", () => {
+  it("allows buyer to create dispute for escrow", () => {
+    // Create listing and escrow
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(6_000), Cl.uint(600), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing-escrow",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // Create dispute
+    const disputeResult = simnet.callPublicFn(
+      contractName,
+      "create-dispute",
+      [Cl.uint(1), Cl.stringAscii("Item not received")],
+      buyer
+    );
+
+    expect(disputeResult.result).toBeOk(Cl.uint(1));
+
+    // Verify dispute was created
+    const dispute = simnet.callReadOnlyFn(
+      contractName,
+      "get-dispute",
+      [Cl.uint(1)],
+      deployer
+    );
+
+    expect(dispute.result).toBeOk(
+      Cl.tuple({
+        "escrow-id": Cl.uint(1),
+        creator: Cl.principal(buyer),
+        reason: Cl.stringAscii("Item not received"),
+        state: Cl.stringAscii("open"),
+      })
+    );
+  });
+
+  it("allows users to stake on dispute outcome", () => {
+    // Setup: listing, escrow, dispute
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(7_000), Cl.uint(700), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing-escrow",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "create-dispute",
+      [Cl.uint(1), Cl.stringAscii("Quality issue")],
+      buyer
+    );
+
+    // Stake on buyer side
+    const stakeResult = simnet.callPublicFn(
+      contractName,
+      "stake-on-dispute",
+      [Cl.uint(1), Cl.bool(true), Cl.uint(1_000)],
+      royaltyRecipient
+    );
+
+    expect(stakeResult.result).toBeOk(Cl.bool(true));
+
+    // Verify stake was recorded
+    const stakes = simnet.callReadOnlyFn(
+      contractName,
+      "get-dispute-stakes",
+      [Cl.uint(1)],
+      deployer
+    );
+
+    expect(stakes.result).toBeOk(
+      Cl.tuple({
+        "buyer-stakes": Cl.uint(1_000),
+        "seller-stakes": Cl.uint(0),
+      })
+    );
+  });
+});
