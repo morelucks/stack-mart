@@ -343,5 +343,44 @@ describe("SP-010 Token Contract", () => {
       expect(response.events).toBeDefined();
       expect(response.events.length).toBeGreaterThan(0);
     });
+
+    it("should emit events for multiple transfers", () => {
+      const response1 = simnet.callPublicFn("sp-010", "transfer", [Cl.uint(ONE_TOKEN), Cl.principal(deployer), Cl.principal(wallet1), Cl.none()], deployer);
+      const response2 = simnet.callPublicFn("sp-010", "transfer", [Cl.uint(HALF_TOKEN), Cl.principal(deployer), Cl.principal(wallet2), Cl.none()], deployer);
+      
+      expect(response1.events).toBeDefined();
+      expect(response2.events).toBeDefined();
+      expect(response1.events.length).toBeGreaterThan(0);
+      expect(response2.events.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("Gas Optimization and Performance", () => {
+    it("should handle batch transfers efficiently", () => {
+      const transfers = [
+        { amount: ONE_TOKEN, recipient: wallet1 },
+        { amount: HALF_TOKEN, recipient: wallet2 },
+        { amount: ONE_TOKEN * 2, recipient: wallet3 }
+      ];
+      
+      transfers.forEach(({ amount, recipient }) => {
+        const response = simnet.callPublicFn(
+          "sp-010",
+          "transfer",
+          [Cl.uint(amount), Cl.principal(deployer), Cl.principal(recipient), Cl.none()],
+          deployer
+        );
+        expect(response.result).toBeOk(Cl.bool(true));
+      });
+      
+      // Verify all transfers completed successfully
+      const wallet1Balance = simnet.callReadOnlyFn("sp-010", "get-balance", [Cl.principal(wallet1)], deployer);
+      const wallet2Balance = simnet.callReadOnlyFn("sp-010", "get-balance", [Cl.principal(wallet2)], deployer);
+      const wallet3Balance = simnet.callReadOnlyFn("sp-010", "get-balance", [Cl.principal(wallet3)], deployer);
+      
+      expect(wallet1Balance.result).toBeOk(Cl.uint(ONE_TOKEN));
+      expect(wallet2Balance.result).toBeOk(Cl.uint(HALF_TOKEN));
+      expect(wallet3Balance.result).toBeOk(Cl.uint(ONE_TOKEN * 2));
+    });
   });
 });
