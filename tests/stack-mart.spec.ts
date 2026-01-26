@@ -840,3 +840,48 @@ describe("stack-mart admin functions", () => {
     expect(setRecipientResult.result).toBeOk(Cl.bool(true));
   });
 });
+
+describe("stack-mart error handling and edge cases", () => {
+  it("rejects purchase with insufficient balance", () => {
+    // Create expensive listing
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(1_000_000_000), Cl.uint(1000), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    // Try to buy with insufficient funds
+    const purchase = simnet.callPublicFn(
+      contractName,
+      "buy-listing",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    expect(purchase.result).toBeErr(Cl.uint(1)); // Insufficient balance error
+  });
+
+  it("rejects listing creation with invalid royalty", () => {
+    // Try to create listing with royalty > 10% (1000 bips)
+    const result = simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(5_000), Cl.uint(1_500), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    expect(result.result).toBeErr(Cl.uint(400)); // Bad royalty error
+  });
+
+  it("rejects purchase of non-existent listing", () => {
+    const purchase = simnet.callPublicFn(
+      contractName,
+      "buy-listing",
+      [Cl.uint(999)],
+      buyer
+    );
+
+    expect(purchase.result).toBeErr(Cl.uint(404)); // Not found error
+  });
+});
