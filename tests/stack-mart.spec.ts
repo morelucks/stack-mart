@@ -966,3 +966,68 @@ describe("stack-mart reputation volume tracking", () => {
     );
   });
 });
+
+describe("stack-mart escrow timeout handling", () => {
+  it("allows buyer to release escrow after timeout", () => {
+    // Create listing and escrow
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(6_500), Cl.uint(650), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing-escrow",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // Advance blocks to timeout (144 blocks)
+    for (let i = 0; i < 145; i++) {
+      simnet.mineBlock([]);
+    }
+
+    const buyerBefore = getStxBalance(buyer);
+
+    // Release escrow after timeout
+    const releaseResult = simnet.callPublicFn(
+      contractName,
+      "release-escrow",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    expect(releaseResult.result).toBeOk(Cl.bool(true));
+
+    // Buyer should get refund
+    expect(getStxBalance(buyer)).toBe(buyerBefore + 6_500n);
+  });
+
+  it("prevents escrow release before timeout", () => {
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(5_500), Cl.uint(550), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing-escrow",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // Try to release before timeout
+    const releaseResult = simnet.callPublicFn(
+      contractName,
+      "release-escrow",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    expect(releaseResult.result).toBeErr(Cl.uint(400)); // Timeout not reached
+  });
+});
