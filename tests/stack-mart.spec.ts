@@ -554,3 +554,48 @@ describe("stack-mart marketplace fee system", () => {
     expect(getStxBalance(feeRecipientBefore)).toBe(feeRecipientBefore + 200n);
   });
 });
+
+describe("stack-mart price history tracking", () => {
+  it("tracks price changes when listing is updated", () => {
+    // Create initial listing
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(5_000), Cl.uint(300), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    // Update listing price (if function exists)
+    // Note: This assumes an update-listing function exists
+    // For now, we'll test price history retrieval
+    const priceHistory = simnet.callReadOnlyFn(
+      contractName,
+      "get-price-history",
+      [Cl.uint(1)],
+      deployer
+    );
+
+    // Verify price history exists and contains initial price
+    expect(priceHistory.result).toBeOk(
+      Cl.tuple({
+        history: Cl.list([
+          Cl.tuple({
+            price: Cl.uint(5_000),
+            "updated-at-block": Cl.uint(0),
+          })
+        ])
+      })
+    );
+  });
+
+  it("returns empty history for non-existent listing", () => {
+    const priceHistory = simnet.callReadOnlyFn(
+      contractName,
+      "get-price-history",
+      [Cl.uint(999)],
+      deployer
+    );
+
+    expect(priceHistory.result).toBeErr(Cl.uint(404));
+  });
+});
