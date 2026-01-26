@@ -1031,3 +1031,55 @@ describe("stack-mart escrow timeout handling", () => {
     expect(releaseResult.result).toBeErr(Cl.uint(400)); // Timeout not reached
   });
 });
+
+describe("stack-mart bundle purchase flow", () => {
+  it("allows purchase of bundle with discount applied", () => {
+    // Create multiple listings
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(1_000), Cl.uint(100), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(2_000), Cl.uint(200), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(3_000), Cl.uint(300), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    // Create bundle with 15% discount (1500 bips)
+    simnet.callPublicFn(
+      contractName,
+      "create-bundle",
+      [
+        Cl.list([Cl.uint(1), Cl.uint(2), Cl.uint(3)]),
+        Cl.uint(1_500),
+      ],
+      seller
+    );
+
+    const buyerBefore = getStxBalance(buyer);
+
+    // Purchase bundle
+    const purchaseResult = simnet.callPublicFn(
+      contractName,
+      "buy-bundle",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    expect(purchaseResult.result).toBeOk(Cl.bool(true));
+
+    // Total: 6000, Discount: 15% = 900, Price: 5100
+    expect(getStxBalance(buyer)).toBe(buyerBefore - 5_100n);
+  });
+});
