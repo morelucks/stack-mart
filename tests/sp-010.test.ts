@@ -1,6 +1,9 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { Cl } from "@stacks/transactions";
 
+// Import simnet for proper typing
+declare const simnet: any;
+
 const accounts = simnet.getAccounts();
 const deployer = accounts.get("deployer")!;
 const wallet1 = accounts.get("wallet_1")!;
