@@ -409,3 +409,72 @@ describe("stack-mart bundles and packs", () => {
     );
   });
 });
+
+describe("stack-mart wishlist functionality", () => {
+  it("allows user to add listing to wishlist", () => {
+    // Create a listing first
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(1_500), Cl.uint(150), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    // Add to wishlist
+    const wishlistResult = simnet.callPublicFn(
+      contractName,
+      "toggle-wishlist",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    expect(wishlistResult.result).toBeOk(Cl.bool(true));
+
+    // Check if listing is in wishlist
+    const wishlist = simnet.callReadOnlyFn(
+      contractName,
+      "get-wishlist",
+      [Cl.principal(buyer)],
+      deployer
+    );
+
+    expect(wishlist.result).toBeOk(Cl.list([Cl.uint(1)]));
+  });
+
+  it("allows user to remove listing from wishlist", () => {
+    // Create listing and add to wishlist
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(2_500), Cl.uint(250), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "toggle-wishlist",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // Remove from wishlist
+    const removeResult = simnet.callPublicFn(
+      contractName,
+      "toggle-wishlist",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    expect(removeResult.result).toBeOk(Cl.bool(true));
+
+    // Verify wishlist is empty
+    const wishlist = simnet.callReadOnlyFn(
+      contractName,
+      "get-wishlist",
+      [Cl.principal(buyer)],
+      deployer
+    );
+
+    expect(wishlist.result).toBeOk(Cl.list([]));
+  });
+});
