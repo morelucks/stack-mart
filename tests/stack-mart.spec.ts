@@ -1434,3 +1434,71 @@ describe("stack-mart seller listing management", () => {
     expect(listing2.result).toBeOk(Cl.tuple({ seller: Cl.principal(seller2) }));
   });
 });
+
+describe("stack-mart royalty distribution accuracy", () => {
+  it("calculates royalty correctly for different percentages", () => {
+    // Test 5% royalty (500 bips)
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(10_000), Cl.uint(500), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    const royaltyBefore = getStxBalance(royaltyRecipient);
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // 5% of 10000 = 500
+    expect(getStxBalance(royaltyRecipient)).toBe(royaltyBefore + 500n);
+  });
+
+  it("handles maximum royalty percentage correctly", () => {
+    // Test 10% royalty (1000 bips - max allowed)
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(8_000), Cl.uint(1_000), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    const royaltyBefore = getStxBalance(royaltyRecipient);
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // 10% of 8000 = 800
+    expect(getStxBalance(royaltyRecipient)).toBe(royaltyBefore + 800n);
+  });
+
+  it("calculates zero royalty correctly", () => {
+    // Test 0% royalty
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(5_000), Cl.uint(0), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    const royaltyBefore = getStxBalance(royaltyRecipient);
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // 0% royalty = 0
+    expect(getStxBalance(royaltyRecipient)).toBe(royaltyBefore);
+  });
+});
