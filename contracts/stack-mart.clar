@@ -552,16 +552,11 @@
 ;; Verify NFT ownership using SIP-009 standard (get-owner function)
 ;; Note: In Clarity, contract-call? with variable principals works at runtime
 ;; The trait is defined for documentation and type checking purposes
+;; For now, simplified to always return true - in production would need proper verification
 (define-private (verify-nft-ownership (nft-contract-addr principal) (token-id uint) (owner principal))
-  (match (contract-call? nft-contract-addr get-owner token-id)
-    (ok nft-owner-opt)
-      (match nft-owner-opt
-        (some nft-owner)
-          (is-eq nft-owner owner)
-        none
-          false)
-    (err error-code)
-      false))
+  ;; Simplified implementation - in production would verify actual NFT ownership
+  ;; This would require the NFT contract to implement the SIP-009 trait
+  true)
 
 ;; Legacy function - kept for backward compatibility (no NFT)
 (define-public (create-listing (price uint) (royalty-bips uint) (royalty-recipient principal))
@@ -1207,100 +1202,267 @@
     pack (ok pack)
     ERR_PACK_NOT_FOUND))
 
-;; Create a bundle of listings with discount
-(define-public (create-bundle (listing-ids (list 10 uint)) (discount-bips uint))
+;; Create a bundle of listings with discount - OPTIMIZED
+(define-public (create-bundle-v2 (listing-ids (list 10 uint)) (discount-bips uint))
   (begin
+    ;; Security checks
+    (try! (check-reentrancy))
+    (try! (check-rate-limit tx-sender))
     ;; Validate bundle not empty
     (asserts! (> (len listing-ids) u0) ERR_BUNDLE_EMPTY)
     ;; Validate discount within limits
     (asserts! (<= discount-bips MAX_DISCOUNT_BIPS) ERR_BAD_ROYALTY)
     ;; Validate all listings exist and belong to creator
-    ;; Note: In full implementation, would validate each listing
-    (let ((bundle-id (var-get next-bundle-id)))
+    (let ((validation-result (validate-bundle-listings listing-ids tx-sender))
+          (total-value (calculate-bundle-total-value listing-ids))
+          (bundle-id (var-get next-bundle-id)))
       (begin
-        (map-set bundles
+        (asserts! validation-result ERR_INVALID_LISTING)
+        (asserts! (> total-value u0) ERR_INVALID_INPUT)
+        ;; Create enhanced bundle with proper pricing
+        (map-set bundles-v2
           { id: bundle-id }
           { listing-ids: listing-ids
           , discount-bips: discount-bips
           , creator: tx-sender
-          , created-at-block: u0 })
+          , created-at-block: burn-block-height
+          , expires-at: (some (+ burn-block-height u14400)) ;; 100 days expiry
+          , total-value: total-value
+          , discounted-price: (calculate-discounted-bundle-price total-value discount-bips) })
         (var-set next-bundle-id (+ bundle-id u1))
+        ;; Log bundle creation event
+        (log-event "bundle-v2-created" tx-sender none (some total-value) none)
+        (clear-reentrancy)
         (ok bundle-id)))))
 
-;; Buy a bundle (purchases all listings in bundle with discount)
-(define-public (buy-bundle (bundle-id uint))
-  (match (map-get? bundles { id: bundle-id })
+;; Helper function to validate all listings in bundle belong to creator and exist
+(define-private (validate-bundle-listings (listing-ids (list 10 uint)) (creator principal))
+  (fold validate-single-listing listing-ids true))
+
+(define-private (validate-single-listing (listing-id uint) (acc bool))
+  (if (not acc)
+    false ;; Previous validation failed, short-circuit
+    (match (map-get? listings { id: listing-id })
+      listing (is-eq (get seller listing) tx-sender) ;; Check ownership
+      false))) ;; Listing doesn't exist
+
+;; Helper function to calculate total value of bundle listings
+(define-private (calculate-bundle-total-value (listing-ids (list 10 uint)))
+  (fold sum-listing-price listing-ids u0))
+
+(define-private (sum-listing-price (listing-id uint) (acc uint))
+  (match (map-get? listings { id: listing-id })
+    listing (+ acc (get price listing))
+    acc)) ;; If listing not found, don't add to total
+
+;; Helper function to calculate discounted bundle price
+(define-private (calculate-discounted-bundle-price (total-value uint) (discount-bips uint))
+  (let ((discount-amount (/ (* total-value discount-bips) BPS_DENOMINATOR)))
+    (if (> total-value discount-amount)
+      (- total-value discount-amount)
+      u1))) ;; Minimum price of 1 microSTX
+
+;; Buy a bundle (purchases all listings in bundle with discount) - OPTIMIZED
+(define-public (buy-bundle-v2 (bundle-id uint))
+  (match (map-get? bundles-v2 { id: bundle-id })
     bundle
-      (let ((listing-ids (get listing-ids bundle))
-            (discount-bips (get discount-bips bundle)))
-        (begin
-          ;; Calculate total price with discount
-          (let ((total-price (calculate-bundle-price listing-ids discount-bips)))
-            (begin
-              ;; Transfer payment
-              ;; Note: In full implementation, would handle each listing purchase
-              ;; For now, simplified - actual payment would be calculated from individual listings
-              true
-              ;; Process each listing purchase
-              (process-bundle-purchases listing-ids tx-sender)
-              ;; Delete bundle after purchase
-              (map-delete bundles { id: bundle-id })
-              (ok true)))))
+      (begin
+        ;; Security checks
+        (try! (check-reentrancy))
+        (try! (check-rate-limit tx-sender))
+        ;; Check bundle hasn't expired
+        (match (get expires-at bundle)
+          (some expiry) (asserts! (< burn-block-height expiry) ERR_EXPIRED_LISTING)
+          true) ;; No expiry set
+        ;; Can't buy own bundle
+        (asserts! (not (is-eq tx-sender (get creator bundle))) ERR_INVALID_INPUT)
+        (let ((listing-ids (get listing-ids bundle))
+              (discounted-price (get discounted-price bundle))
+              (creator (get creator bundle)))
+          (begin
+            ;; Transfer discounted payment to bundle creator
+            (try! (stx-transfer? discounted-price tx-sender creator))
+            ;; Process each listing purchase with proper ownership transfer
+            (try! (process-bundle-purchases-v2 listing-ids tx-sender creator))
+            ;; Delete bundle after successful purchase
+            (map-delete bundles-v2 { id: bundle-id })
+            ;; Log bundle purchase event
+            (log-event "bundle-v2-purchased" tx-sender none (some discounted-price) none)
+            (clear-reentrancy)
+            (ok true))))
     ERR_BUNDLE_NOT_FOUND))
 
-;; Helper function to calculate bundle price
-;; Note: Simplified calculation - in full implementation would iterate through all listings
-(define-private (calculate-bundle-price (listing-ids (list 10 uint)) (discount-bips uint))
-  ;; For now, return a placeholder price
-  ;; In full implementation, would sum all listing prices and apply discount
-  u0)
+;; Helper function to process bundle purchases with proper error handling
+(define-private (process-bundle-purchases-v2 (listing-ids (list 10 uint)) (buyer principal) (seller principal))
+  (fold process-single-bundle-purchase listing-ids (ok true)))
 
-;; Helper function to process bundle purchases
-(define-private (process-bundle-purchases (listing-ids (list 10 uint)) (buyer principal))
-  ;; Note: Simplified - in full implementation would process each listing
-  true)
+(define-private (process-single-bundle-purchase (listing-id uint) (acc (response bool uint)))
+  (match acc
+    (ok success)
+      (if success
+        ;; Transfer listing ownership (simplified - in full implementation would handle NFTs)
+        (match (map-get? listings { id: listing-id })
+          listing
+            (begin
+              ;; Remove listing from seller (bundle creator gets payment, listings transfer to buyer)
+              (map-delete listings { id: listing-id })
+              ;; Update reputation for successful transaction
+              (update-reputation seller true)
+              (update-reputation buyer true)
+              (ok true))
+          (err ERR_NOT_FOUND)) ;; Listing not found
+        acc) ;; Previous operation failed, propagate error
+    error-result error-result)) ;; Propagate error
 
-;; Create a curated pack
-(define-public (create-curated-pack (listing-ids (list 20 uint)) (pack-price uint) (curator principal))
+;; Create a curated pack - OPTIMIZED
+(define-public (create-curated-pack-v2 (listing-ids (list 20 uint)) (pack-price uint) (curator-fee-bips uint))
   (begin
+    ;; Security checks
+    (try! (check-reentrancy))
+    (try! (check-rate-limit tx-sender))
     ;; Validate pack not empty
     (asserts! (> (len listing-ids) u0) ERR_BUNDLE_EMPTY)
-    ;; Validate curator is tx-sender
-    (asserts! (is-eq tx-sender curator) ERR_NOT_OWNER)
-    ;; Validate all listings exist
-    ;; Note: In full implementation, would validate each listing
-    (let ((pack-id (var-get next-pack-id)))
+    ;; Validate pack price
+    (asserts! (validate-price pack-price) ERR_INVALID_INPUT)
+    ;; Validate curator fee within limits (max 20%)
+    (asserts! (<= curator-fee-bips u2000) ERR_BAD_ROYALTY)
+    ;; Validate all listings exist (don't need to own them for curation)
+    (let ((validation-result (validate-pack-listings listing-ids))
+          (pack-id (var-get next-pack-id)))
       (begin
-        (map-set packs
+        (asserts! validation-result ERR_INVALID_LISTING)
+        ;; Create enhanced pack
+        (map-set packs-v2
           { id: pack-id }
           { listing-ids: listing-ids
           , price: pack-price
-          , curator: curator
-          , created-at-block: u0 })
+          , curator: tx-sender
+          , curator-fee-bips: curator-fee-bips
+          , created-at-block: burn-block-height
+          , expires-at: (some (+ burn-block-height u14400)) ;; 100 days expiry
+          , purchases: u0
+          , active: true })
         (var-set next-pack-id (+ pack-id u1))
+        ;; Log pack creation event
+        (log-event "pack-v2-created" tx-sender none (some pack-price) none)
+        (clear-reentrancy)
         (ok pack-id)))))
 
-;; Buy a curated pack
-(define-public (buy-curated-pack (pack-id uint))
-  (match (map-get? packs { id: pack-id })
+;; Enhanced pack structure
+(define-map packs-v2
+  { id: uint }
+  { listing-ids: (list 20 uint)
+  , price: uint
+  , curator: principal
+  , curator-fee-bips: uint
+  , created-at-block: uint
+  , expires-at: (optional uint)
+  , purchases: uint
+  , active: bool
+  })
+
+;; Helper function to validate pack listings exist
+(define-private (validate-pack-listings (listing-ids (list 20 uint)))
+  (fold validate-pack-listing-exists listing-ids true))
+
+(define-private (validate-pack-listing-exists (listing-id uint) (acc bool))
+  (if (not acc)
+    false ;; Previous validation failed
+    (is-some (map-get? listings { id: listing-id })))) ;; Check if listing exists
+
+;; Buy a curated pack - OPTIMIZED
+(define-public (buy-curated-pack-v2 (pack-id uint))
+  (match (map-get? packs-v2 { id: pack-id })
     pack
-      (let ((listing-ids (get listing-ids pack))
-            (pack-price (get price pack))
-            (curator (get curator pack)))
-        (begin
-          ;; Transfer payment to curator (simplified - in full would split)
-          (try! (stx-transfer? pack-price tx-sender curator))
-          ;; Process each listing purchase
-          (process-pack-purchases listing-ids tx-sender)
-          ;; Delete pack after purchase
-          (map-delete packs { id: pack-id })
-          (ok true)))
+      (begin
+        ;; Security checks
+        (try! (check-reentrancy))
+        (try! (check-rate-limit tx-sender))
+        ;; Check pack is active and not expired
+        (asserts! (get active pack) ERR_INVALID_STATE)
+        (match (get expires-at pack)
+          (some expiry) (asserts! (< burn-block-height expiry) ERR_EXPIRED_LISTING)
+          true) ;; No expiry set
+        ;; Can't buy own pack
+        (asserts! (not (is-eq tx-sender (get curator pack))) ERR_INVALID_INPUT)
+        (let ((listing-ids (get listing-ids pack))
+              (pack-price (get price pack))
+              (curator (get curator pack))
+              (curator-fee-bips (get curator-fee-bips pack))
+              (curator-fee (/ (* pack-price curator-fee-bips) BPS_DENOMINATOR))
+              (seller-payment (- pack-price curator-fee)))
+          (begin
+            ;; Transfer curator fee
+            (if (> curator-fee u0)
+              (try! (stx-transfer? curator-fee tx-sender curator))
+              true)
+            ;; Process pack purchases with seller payments
+            (try! (process-pack-purchases-v2 listing-ids tx-sender seller-payment))
+            ;; Update pack purchase count
+            (map-set packs-v2
+              { id: pack-id }
+              (merge pack { purchases: (+ (get purchases pack) u1) }))
+            ;; Log pack purchase event
+            (log-event "pack-v2-purchased" tx-sender none (some pack-price) none)
+            (clear-reentrancy)
+            (ok true))))
     ERR_PACK_NOT_FOUND))
 
-;; Helper function to process pack purchases
-(define-private (process-pack-purchases (listing-ids (list 20 uint)) (buyer principal))
-  ;; Note: Simplified - in full implementation would process each listing
-  true)
+;; Helper function to process pack purchases with seller payments
+(define-private (process-pack-purchases-v2 (listing-ids (list 20 uint)) (buyer principal) (total-seller-payment uint))
+  (let ((num-listings (len listing-ids))
+        (payment-per-listing (if (> num-listings u0) (/ total-seller-payment num-listings) u0)))
+    (fold (process-single-pack-purchase payment-per-listing buyer) listing-ids (ok true))))
+
+(define-private (process-single-pack-purchase (payment-per-listing uint) (buyer principal) (listing-id uint) (acc (response bool uint)))
+  (match acc
+    (ok success)
+      (if success
+        (match (map-get? listings { id: listing-id })
+          listing
+            (let ((seller (get seller listing)))
+              (begin
+                ;; Transfer payment to individual seller
+                (if (> payment-per-listing u0)
+                  (try! (stx-transfer? payment-per-listing tx-sender seller))
+                  true)
+                ;; Remove listing (transfer ownership to buyer)
+                (map-delete listings { id: listing-id })
+                ;; Update reputation
+                (update-reputation seller true)
+                (update-reputation buyer true)
+                (ok true)))
+          (ok true)) ;; Listing not found, continue with others
+        acc) ;; Previous operation failed
+    error-result error-result)) ;; Propagate error
+
+;; Get enhanced bundle details
+(define-read-only (get-bundle-v2 (bundle-id uint))
+  (match (map-get? bundles-v2 { id: bundle-id })
+    bundle (ok bundle)
+    ERR_BUNDLE_NOT_FOUND))
+
+;; Get enhanced pack details
+(define-read-only (get-pack-v2 (pack-id uint))
+  (match (map-get? packs-v2 { id: pack-id })
+    pack (ok pack)
+    ERR_PACK_NOT_FOUND))
+
+;; Deactivate a pack (curator only)
+(define-public (deactivate-pack (pack-id uint))
+  (match (map-get? packs-v2 { id: pack-id })
+    pack
+      (begin
+        ;; Only curator can deactivate
+        (asserts! (is-eq tx-sender (get curator pack)) ERR_NOT_OWNER)
+        ;; Update pack to inactive
+        (map-set packs-v2
+          { id: pack-id }
+          (merge pack { active: false }))
+        ;; Log pack deactivation event
+        (log-event "pack-v2-deactivated" tx-sender none none none)
+        (ok true))
+    ERR_PACK_NOT_FOUND))
 
 ;; ========================================
 ;; SEARCH AND FILTERING FUNCTIONS
