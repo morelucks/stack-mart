@@ -1502,3 +1502,92 @@ describe("stack-mart royalty distribution accuracy", () => {
     expect(getStxBalance(royaltyRecipient)).toBe(royaltyBefore);
   });
 });
+
+describe("stack-mart escrow state transitions", () => {
+  it("transitions from pending to delivered state", () => {
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(4_500), Cl.uint(450), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing-escrow",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // Verify initial state
+    let escrow = simnet.callReadOnlyFn(
+      contractName,
+      "get-escrow-status",
+      [Cl.uint(1)],
+      deployer
+    );
+
+    expect(escrow.result).toBeOk(Cl.tuple({ state: Cl.stringAscii("pending") }));
+
+    // Attest delivery
+    const hash = Cl.bufferFromHex("0000000000000000000000000000000000000000000000000000000000000007");
+    simnet.callPublicFn(
+      contractName,
+      "attest-delivery",
+      [Cl.uint(1), hash],
+      seller
+    );
+
+    // Verify state transition
+    escrow = simnet.callReadOnlyFn(
+      contractName,
+      "get-escrow-status",
+      [Cl.uint(1)],
+      deployer
+    );
+
+    expect(escrow.result).toBeOk(Cl.tuple({ state: Cl.stringAscii("delivered") }));
+  });
+
+  it("transitions from delivered to completed state", () => {
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(3_500), Cl.uint(350), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing-escrow",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    const hash = Cl.bufferFromHex("0000000000000000000000000000000000000000000000000000000000000008");
+    simnet.callPublicFn(
+      contractName,
+      "attest-delivery",
+      [Cl.uint(1), hash],
+      seller
+    );
+
+    // Confirm receipt
+    simnet.callPublicFn(
+      contractName,
+      "confirm-receipt",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // Escrow should be completed (listing deleted)
+    const listing = simnet.callReadOnlyFn(
+      contractName,
+      "get-listing",
+      [Cl.uint(1)],
+      deployer
+    );
+
+    expect(listing.result).toBeErr(Cl.uint(404));
+  });
+});
