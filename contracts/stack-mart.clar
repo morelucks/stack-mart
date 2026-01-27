@@ -18,6 +18,19 @@
 (define-data-var next-bundle-id uint u1)
 (define-data-var next-pack-id uint u1)
 
+;; Security guards
+(define-data-var reentrancy-guard bool false)
+
+;; Rate limiting
+(define-map rate-limits
+  { principal: principal }
+  { last-action: uint
+  , action-count: uint
+  })
+
+(define-constant RATE_LIMIT_WINDOW u10) ;; 10 blocks
+(define-constant MAX_ACTIONS_PER_WINDOW u5)
+
 (define-constant MAX_ROYALTY_BIPS u1000) ;; 10% in basis points
 (define-constant BPS_DENOMINATOR u10000)
 (define-constant ERR_BAD_ROYALTY (err u400))
@@ -70,6 +83,36 @@
 
 (define-private (validate-string-length (str (string-ascii 500)) (max-len uint))
   (<= (len str) max-len))
+
+;; Security helpers
+(define-private (check-reentrancy)
+  (begin
+    (asserts! (not (var-get reentrancy-guard)) ERR_REENTRANCY)
+    (var-set reentrancy-guard true)
+    (ok true)))
+
+(define-private (clear-reentrancy)
+  (var-set reentrancy-guard false))
+
+(define-private (check-rate-limit (principal principal))
+  (let ((current-limit (default-to { last-action: u0, action-count: u0 } (map-get? rate-limits { principal: principal })))
+        (current-block burn-block-height))
+    (if (> (- current-block (get last-action current-limit)) RATE_LIMIT_WINDOW)
+      ;; Reset window
+      (begin
+        (map-set rate-limits { principal: principal } { last-action: current-block, action-count: u1 })
+        (ok true))
+      ;; Check within window
+      (if (< (get action-count current-limit) MAX_ACTIONS_PER_WINDOW)
+        (begin
+          (map-set rate-limits { principal: principal } 
+            { last-action: (get last-action current-limit), 
+              action-count: (+ (get action-count current-limit) u1) })
+          (ok true))
+        ERR_RATE_LIMITED))))
+
+(define-private (verify-ownership (owner principal) (caller principal))
+  (is-eq owner caller))
 
 ;; Bundle and pack constants
 (define-constant MAX_BUNDLE_SIZE u10)
@@ -288,6 +331,9 @@
 ;; Legacy function - kept for backward compatibility (no NFT)
 (define-public (create-listing (price uint) (royalty-bips uint) (royalty-recipient principal))
   (begin
+    ;; Security checks
+    (try! (check-reentrancy))
+    (try! (check-rate-limit tx-sender))
     ;; Enhanced input validation
     (asserts! (validate-price price) ERR_INVALID_INPUT)
     (asserts! (validate-royalty royalty-bips) ERR_BAD_ROYALTY)
@@ -302,6 +348,7 @@
         , token-id: none
         , license-terms: none })
       (var-set next-id (+ id u1))
+      (clear-reentrancy)
       (ok id))))
 
 ;; Create listing with NFT and license terms
@@ -313,6 +360,9 @@
     (royalty-recipient principal)
     (license-terms (string-ascii 500)))
   (begin
+    ;; Security checks
+    (try! (check-reentrancy))
+    (try! (check-rate-limit tx-sender))
     ;; Enhanced input validation
     (asserts! (validate-price price) ERR_INVALID_INPUT)
     (asserts! (validate-royalty royalty-bips) ERR_BAD_ROYALTY)
@@ -330,6 +380,7 @@
         , token-id: (some token-id)
         , license-terms: (some license-terms) })
       (var-set next-id (+ id u1))
+      (clear-reentrancy)
       (ok id))))
 
 ;; Legacy immediate purchase (kept for backward compatibility)
