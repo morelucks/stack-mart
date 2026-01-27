@@ -1934,3 +1934,67 @@ describe("stack-mart reputation calculation accuracy", () => {
     expect(sellerRep.result).toBeOk(Cl.tuple({}));
   });
 });
+
+describe("stack-mart marketplace fee edge cases", () => {
+  it("handles zero marketplace fee correctly", () => {
+    // Admin sets fee to zero
+    simnet.callPublicFn(
+      contractName,
+      "set-marketplace-fee",
+      [Cl.uint(0)],
+      deployer
+    );
+
+    // Create and purchase listing
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(10_000), Cl.uint(500), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    const sellerBefore = getStxBalance(seller);
+    const feeRecipientBefore = getStxBalance(deployer);
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // With zero fee, seller gets full amount minus royalty
+    // 10000 - 500 (royalty) = 9500
+    expect(getStxBalance(seller)).toBe(sellerBefore + 9_500n);
+    expect(getStxBalance(feeRecipientBefore)).toBe(feeRecipientBefore);
+  });
+
+  it("handles maximum marketplace fee correctly", () => {
+    // Set fee to maximum (assuming 10% = 1000 bips)
+    simnet.callPublicFn(
+      contractName,
+      "set-marketplace-fee",
+      [Cl.uint(1_000)],
+      deployer
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(8_000), Cl.uint(400), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    const feeRecipientBefore = getStxBalance(deployer);
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // Fee: 8000 * 0.10 = 800
+    expect(getStxBalance(feeRecipientBefore)).toBe(feeRecipientBefore + 800n);
+  });
+});
