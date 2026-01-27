@@ -1349,3 +1349,88 @@ describe("stack-mart multiple escrow management", () => {
     expect(escrow2.result).toBeOk(Cl.tuple({ state: Cl.stringAscii("pending") }));
   });
 });
+
+describe("stack-mart seller listing management", () => {
+  it("allows seller to create multiple listings", () => {
+    // Create several listings from same seller
+    const listing1 = simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(1_000), Cl.uint(100), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    const listing2 = simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(2_000), Cl.uint(200), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    const listing3 = simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(3_000), Cl.uint(300), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    expect(listing1.result).toBeOk(Cl.uint(1));
+    expect(listing2.result).toBeOk(Cl.uint(2));
+    expect(listing3.result).toBeOk(Cl.uint(3));
+
+    // Verify all listings exist
+    const list1 = simnet.callReadOnlyFn(
+      contractName,
+      "get-listing",
+      [Cl.uint(1)],
+      deployer
+    );
+
+    const list2 = simnet.callReadOnlyFn(
+      contractName,
+      "get-listing",
+      [Cl.uint(2)],
+      deployer
+    );
+
+    expect(list1.result).toBeOk(Cl.tuple({ seller: Cl.principal(seller) }));
+    expect(list2.result).toBeOk(Cl.tuple({ seller: Cl.principal(seller) }));
+  });
+
+  it("tracks listings by seller address", () => {
+    // Create listings from different sellers
+    const seller2 = accounts.get("wallet_4")!;
+
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(5_000), Cl.uint(500), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(6_000), Cl.uint(600), Cl.principal(royaltyRecipient)],
+      seller2
+    );
+
+    // Verify listings have correct sellers
+    const listing1 = simnet.callReadOnlyFn(
+      contractName,
+      "get-listing",
+      [Cl.uint(1)],
+      deployer
+    );
+
+    const listing2 = simnet.callReadOnlyFn(
+      contractName,
+      "get-listing",
+      [Cl.uint(2)],
+      deployer
+    );
+
+    expect(listing1.result).toBeOk(Cl.tuple({ seller: Cl.principal(seller) }));
+    expect(listing2.result).toBeOk(Cl.tuple({ seller: Cl.principal(seller2) }));
+  });
+});
