@@ -1591,3 +1591,63 @@ describe("stack-mart escrow state transitions", () => {
     expect(listing.result).toBeErr(Cl.uint(404));
   });
 });
+
+describe("stack-mart bundle validation", () => {
+  it("rejects bundle creation with empty listing list", () => {
+    const bundleResult = simnet.callPublicFn(
+      contractName,
+      "create-bundle",
+      [
+        Cl.list([]),
+        Cl.uint(500),
+      ],
+      seller
+    );
+
+    expect(bundleResult.result).toBeErr(Cl.uint(400)); // Bundle empty error
+  });
+
+  it("rejects bundle creation with non-existent listing IDs", () => {
+    const bundleResult = simnet.callPublicFn(
+      contractName,
+      "create-bundle",
+      [
+        Cl.list([Cl.uint(999), Cl.uint(998)]),
+        Cl.uint(1_000),
+      ],
+      seller
+    );
+
+    expect(bundleResult.result).toBeErr(Cl.uint(400)); // Invalid listing error
+  });
+
+  it("rejects bundle purchase when listing is already sold", () => {
+    // Create and sell listing
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(2_000), Cl.uint(200), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // Try to create bundle with sold listing
+    const bundleResult = simnet.callPublicFn(
+      contractName,
+      "create-bundle",
+      [
+        Cl.list([Cl.uint(1)]),
+        Cl.uint(500),
+      ],
+      seller
+    );
+
+    expect(bundleResult.result).toBeErr(Cl.uint(400)); // Invalid listing
+  });
+});
