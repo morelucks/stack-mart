@@ -1240,3 +1240,112 @@ describe("stack-mart listing with NFT integration", () => {
     // NFT transfer would be verified through NFT contract calls
   });
 });
+
+describe("stack-mart multiple escrow management", () => {
+  it("handles multiple concurrent escrows correctly", () => {
+    // Create multiple listings
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(3_000), Cl.uint(300), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(4_000), Cl.uint(400), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    // Create escrows for both
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing-escrow",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing-escrow",
+      [Cl.uint(2)],
+      buyer
+    );
+
+    // Verify both escrows exist
+    const escrow1 = simnet.callReadOnlyFn(
+      contractName,
+      "get-escrow-status",
+      [Cl.uint(1)],
+      deployer
+    );
+
+    const escrow2 = simnet.callReadOnlyFn(
+      contractName,
+      "get-escrow-status",
+      [Cl.uint(2)],
+      deployer
+    );
+
+    expect(escrow1.result).toBeOk(Cl.tuple({ state: Cl.stringAscii("pending") }));
+    expect(escrow2.result).toBeOk(Cl.tuple({ state: Cl.stringAscii("pending") }));
+  });
+
+  it("allows independent completion of multiple escrows", () => {
+    // Setup two escrows
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(2_000), Cl.uint(200), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "create-listing",
+      [Cl.uint(3_000), Cl.uint(300), Cl.principal(royaltyRecipient)],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing-escrow",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "buy-listing-escrow",
+      [Cl.uint(2)],
+      buyer
+    );
+
+    // Complete first escrow
+    const hash1 = Cl.bufferFromHex("0000000000000000000000000000000000000000000000000000000000000006");
+    simnet.callPublicFn(
+      contractName,
+      "attest-delivery",
+      [Cl.uint(1), hash1],
+      seller
+    );
+
+    simnet.callPublicFn(
+      contractName,
+      "confirm-receipt",
+      [Cl.uint(1)],
+      buyer
+    );
+
+    // Second escrow should still be pending
+    const escrow2 = simnet.callReadOnlyFn(
+      contractName,
+      "get-escrow-status",
+      [Cl.uint(2)],
+      deployer
+    );
+
+    expect(escrow2.result).toBeOk(Cl.tuple({ state: Cl.stringAscii("pending") }));
+  });
+});
