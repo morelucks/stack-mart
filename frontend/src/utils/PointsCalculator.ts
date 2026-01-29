@@ -9,7 +9,8 @@ export const ActivityType = {
     CONTRACT_DEPLOY: 'contract-deployment',
     CONNECT_USAGE: 'connect',
     LIBRARY_USE: 'library_use',
-    REFERRAL: 'referral'
+    REFERRAL: 'referral',
+    GITHUB_CONTRIBUTION: 'github_contribution'
 } as const;
 
 export type ActivityType = typeof ActivityType[keyof typeof ActivityType];
@@ -34,7 +35,8 @@ export class PointsCalculator {
         [ActivityType.CONTRACT_DEPLOY]: 500,
         [ActivityType.CONNECT_USAGE]: 25,
         [ActivityType.LIBRARY_USE]: 100,
-        [ActivityType.REFERRAL]: 250
+        [ActivityType.REFERRAL]: 250,
+        [ActivityType.GITHUB_CONTRIBUTION]: 75
     };
 
     private static TIER_MULTIPLIERS: Record<UserTier, number> = {
