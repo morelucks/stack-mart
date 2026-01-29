@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ReferralManager, ReferralData } from '../utils/ReferralManager';
+import { ReferralManager } from '../utils/ReferralManager';
+import type { ReferralData } from '../utils/ReferralManager';
 
 export const RewardsSettings: React.FC = () => {
     const [referralData, setReferralData] = useState<ReferralData | null>(null);
@@ -29,7 +30,14 @@ export const RewardsSettings: React.FC = () => {
                     <h2 className="text-2xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
                         Rewards Settings
                     </h2>
-                    <p className="text-sm text-gray-500">Manage your point preferences and referrals</p>
+                    <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                        Rewards are based on your leaderboard position, which is determined by your activity across:
+                    </p>
+                    <ul className="text-[10px] text-gray-500 mt-2 space-y-1 list-disc list-inside">
+                        <li>The activity and impact of the smart contracts you’ve deployed on Stacks</li>
+                        <li>Use of <code className="text-orange-500/80">@stacks/connect</code> and <code className="text-orange-500/80">@stacks/transactions</code> in your repos</li>
+                        <li>GitHub contributions to public repositories</li>
+                    </ul>
                 </div>
             </div>
 
