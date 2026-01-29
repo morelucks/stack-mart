@@ -282,15 +282,97 @@
   , state: (string-ascii 20) ;; "active", "ended", "cancelled"
   })
 
-(define-map auction-bids
-  { auction-id: uint, bidder: principal }
-  { amount: uint, block-height: uint })
+(define-public (create-auction (nft-trait <sip009-nft-trait>) (token-id uint) (start-price uint) (reserve-price uint) (duration uint))
+  (let ((id (var-get next-auction-id)))
+    (begin
+      ;; Transfer NFT to contract
+      (try! (contract-call? nft-trait transfer token-id tx-sender (as-contract tx-sender)))
+      (map-set auctions
+        { id: id }
+        { seller: tx-sender
+        , nft-contract: (contract-of nft-trait)
+        , token-id: token-id
+        , start-price: start-price
+        , reserve-price: reserve-price
+        , end-block: (+ burn-block-height duration)
+        , highest-bid: u0
+        , highest-bidder: none
+        , state: "active" })
+      (var-set next-auction-id (+ id u1))
+      (ok id))))
 
-(define-constant ANTI_SNIPE_DURATION u50)
-(define-constant MIN_BID_INCREMENT_BIPS u500) ;; 5%
+(define-public (place-bid (auction-id uint) (amount uint))
+  (match (map-get? auctions { id: auction-id })
+    auction
+      (let ((current-bid (get highest-bid auction))
+            (current-bidder (get highest-bidder auction)))
+        (begin
+          (asserts! (is-eq (get state auction) "active") ERR_INVALID_STATE)
+          (asserts! (< burn-block-height (get end-block auction)) ERR_TIMEOUT_NOT_REACHED)
+          (asserts! (> amount current-bid) ERR_INVALID_LISTING) ;; Bid must be higher
+          (asserts! (>= amount (get start-price auction)) ERR_INVALID_LISTING)
+          
+          ;; Transfer STX to contract
+          (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+          
+          ;; Refund previous bidder
+          (match current-bidder
+            prev-bidder (try! (as-contract (stx-transfer? current-bid tx-sender prev-bidder)))
+            true)
+            
+          (map-set auctions
+            { id: auction-id }
+            (merge auction { highest-bid: amount, highest-bidder: (some tx-sender) }))
+          (ok true)))
+    ERR_NOT_FOUND))
 
-;; Auction System Functions Removed
+(define-public (end-auction (auction-id uint) (nft-trait <sip009-nft-trait>))
+  (match (map-get? auctions { id: auction-id })
+    auction
+      (begin
+        (asserts! (is-eq (get state auction) "active") ERR_INVALID_STATE)
+        ;; Allow ending if expired OR if seller cancels (if no bids)
+        ;; If bids exist, must wait for expiry
+        (asserts! (or (>= burn-block-height (get end-block auction)) 
+                      (and (is-eq tx-sender (get seller auction)) (is-eq (get highest-bid auction) u0))) 
+                  ERR_TIMEOUT_NOT_REACHED)
+        
+        ;; Verify trait matches
+        (asserts! (is-eq (contract-of nft-trait) (get nft-contract auction)) ERR_INVALID_LISTING)
 
+        (let ((winner (get highest-bidder auction))
+              (price (get highest-bid auction))
+              (seller (get seller auction))
+              (token-id (get token-id auction)))
+           (begin
+             (match winner
+               buyer 
+                 (if (>= price (get reserve-price auction))
+                   (begin
+                     ;; Success - Transfer NFT to winner, STX to seller (minus fee)
+                     (try! (as-contract (contract-call? nft-trait transfer token-id tx-sender buyer)))
+                     ;; Transfer STX to seller (minus fee)
+                     (let ((marketplace-fee (/ (* price (var-get marketplace-fee-bips)) BPS_DENOMINATOR))
+                           (seller-share (- price marketplace-fee)))
+                       (try! (as-contract (stx-transfer? marketplace-fee tx-sender (var-get fee-recipient))))
+                       (try! (as-contract (stx-transfer? seller-share tx-sender seller))))
+                     
+                     (map-set auctions { id: auction-id } (merge auction { state: "ended" }))
+                     (ok true))
+                   (begin
+                     ;; Reserve not met - Return NFT to seller, refund buyer
+                     (try! (as-contract (stx-transfer? price tx-sender buyer)))
+                     (try! (as-contract (contract-call? nft-trait transfer token-id tx-sender seller)))
+                     (map-set auctions { id: auction-id } (merge auction { state: "ended" }))
+                     (ok false)))
+               ;; No bids - Return NFT to seller
+               (begin 
+                  (try! (as-contract (contract-call? nft-trait transfer token-id tx-sender seller)))
+                  (map-set auctions { id: auction-id } (merge auction { state: "ended" }))
+                  (ok true)))
+           )) 
+      )
+    ERR_NOT_FOUND))
 
 ;; Bundle and curated pack system
 (define-map bundles
@@ -339,10 +421,10 @@
 
 ;; Legacy aliases for compatibility
 (define-read-only (get-seller-reputation (seller principal))
-  (get-user-reputation seller))
+  (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } (map-get? reputation { user: seller }))))
 
 (define-read-only (get-buyer-reputation (buyer principal))
-  (get-user-reputation buyer))
+  (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } (map-get? reputation { user: buyer }))))
 
 ;; Verify NFT ownership using SIP-009 standard (get-owner function)
 ;; Note: In Clarity, contract-call? with variable principals works at runtime
@@ -482,7 +564,6 @@
               , created-at-block: burn-block-height
               , state: "pending"
               , timeout-block: (+ burn-block-height ESCROW_TIMEOUT_BLOCKS) })
-            (print { event: "escrow_created", listing-id: id, buyer: tx-sender, amount: price })
             (ok true))))
     ERR_NOT_FOUND))
 
@@ -1034,7 +1115,6 @@
           
           ;; Delete bundle after purchase
           (map-delete bundles { id: bundle-id })
-          (print { event: "bundle_sold", id: bundle-id, buyer: tx-sender })
           (ok true)))
     ERR_BUNDLE_NOT_FOUND))
 
