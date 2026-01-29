@@ -98,6 +98,41 @@
     )
 )
 
+;; Public: Log Library Usage
+;; Tracks use of @stacks/connect and @stacks/transactions
+(define-public (log-library-usage (user principal) (library-type (string-ascii 20)))
+    (let (
+        (current-stats (default-to 
+            {
+                total-points: u0,
+                contract-impact-points: u0,
+                library-usage-points: u0,
+                github-contrib-points: u0,
+                last-activity-block: block-height,
+                reputation-score: u0
+            }
+            (map-get? UserPoints user)
+        ))
+        (points POINTS-PER-LIBRARY-USAGE)
+    )
+        ;; Validate library type
+        (asserts! (or (is-eq library-type "connect") (is-eq library-type "transactions")) ERR-INVALID-POINTS)
+        
+        ;; Check for overflow
+        (asserts! (< (+ (get total-points current-stats) points) u340282366920938463463374607431768211455) ERR-BUFFER-OVERFLOW)
+        
+        (map-set UserPoints user
+            (merge current-stats {
+                total-points: (+ (get total-points current-stats) points),
+                library-usage-points: (+ (get library-usage-points current-stats) points),
+                last-activity-block: block-height
+            })
+        )
+        (update-global-stats points)
+        (ok true)
+    )
+)
+
 ;; Internal: Update Global Accumulators
 (define-private (update-global-stats (new-points uint))
     (let (
