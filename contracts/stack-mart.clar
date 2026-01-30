@@ -40,3 +40,4 @@
 (define-constant ERR_INSUFFICIENT_STAKES (err u400))
 (define-constant ERR_INVALID_SIDE (err u400))
 (define-constant ERR_BUNDLE_NOT_FOUND (err u404))
+(define-constant ERR_PACK_NOT_FOUND (err u404))
