@@ -212,3 +212,8 @@
   { listing-id: uint }
   { history: (list 10 { price: uint, block-height: uint }) })
 
+(define-public (set-admin (new-admin principal)) 
+  (begin 
+    (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER) 
+    (ok (var-set admin new-admin))))
+
