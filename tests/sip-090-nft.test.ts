@@ -251,3 +251,122 @@ describe("SIP-090 NFT Contract", () => {
       expect(transferResult.result).toBeErr(Cl.uint(503)); // ERR-CONTRACT-PAUSED
     });
   });
+  describe("Administrative Functions", () => {
+    it("should allow owner to pause contract", () => {
+      const pauseResult = simnet.callPublicFn(
+        contractName,
+        "pause-contract",
+        [],
+        deployer
+      );
+
+      expect(pauseResult.result).toBeOk(Cl.bool(true));
+
+      // Verify contract is paused
+      const isPaused = simnet.callReadOnlyFn(
+        contractName,
+        "is-paused",
+        [],
+        deployer
+      );
+      expect(isPaused.result).toBeOk(Cl.bool(true));
+    });
+
+    it("should allow owner to unpause contract", () => {
+      // First pause
+      simnet.callPublicFn(contractName, "pause-contract", [], deployer);
+
+      // Then unpause
+      const unpauseResult = simnet.callPublicFn(
+        contractName,
+        "unpause-contract",
+        [],
+        deployer
+      );
+
+      expect(unpauseResult.result).toBeOk(Cl.bool(true));
+
+      // Verify contract is not paused
+      const isPaused = simnet.callReadOnlyFn(
+        contractName,
+        "is-paused",
+        [],
+        deployer
+      );
+      expect(isPaused.result).toBeOk(Cl.bool(false));
+    });
+
+    it("should reject pause from non-owner", () => {
+      const pauseResult = simnet.callPublicFn(
+        contractName,
+        "pause-contract",
+        [],
+        wallet1
+      );
+
+      expect(pauseResult.result).toBeErr(Cl.uint(401)); // ERR-NOT-AUTHORIZED
+    });
+
+    it("should allow owner to set base URI", () => {
+      const newBaseUri = "https://new.api.com/nft/";
+      
+      const setUriResult = simnet.callPublicFn(
+        contractName,
+        "set-base-uri",
+        [Cl.stringAscii(newBaseUri)],
+        deployer
+      );
+
+      expect(setUriResult.result).toBeOk(Cl.bool(true));
+
+      // Verify new base URI is used
+      simnet.callPublicFn(
+        contractName,
+        "mint",
+        [Cl.principal(wallet1), Cl.none()],
+        deployer
+      );
+
+      const tokenUri = simnet.callReadOnlyFn(
+        contractName,
+        "get-token-uri",
+        [Cl.uint(1)],
+        deployer
+      );
+
+      expect(tokenUri.result).toBeOk(
+        Cl.some(Cl.stringAscii("https://new.api.com/nft/1"))
+      );
+    });
+
+    it("should allow owner to set custom token URI", () => {
+      // First mint a token
+      simnet.callPublicFn(
+        contractName,
+        "mint",
+        [Cl.principal(wallet1), Cl.none()],
+        deployer
+      );
+
+      const customUri = "https://custom.token.uri/special";
+      
+      const setTokenUriResult = simnet.callPublicFn(
+        contractName,
+        "set-token-uri",
+        [Cl.uint(1), Cl.stringAscii(customUri)],
+        deployer
+      );
+
+      expect(setTokenUriResult.result).toBeOk(Cl.bool(true));
+
+      // Verify custom URI is returned
+      const tokenUri = simnet.callReadOnlyFn(
+        contractName,
+        "get-token-uri",
+        [Cl.uint(1)],
+        deployer
+      );
+
+      expect(tokenUri.result).toBeOk(Cl.some(Cl.stringAscii(customUri)));
+    });
+  });
