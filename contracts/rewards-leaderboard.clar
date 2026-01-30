@@ -815,3 +815,60 @@
         total: (get total-users (get-global-stats))
     })
 )
+
+;; ============================================================================
+;; MULTI-ADMIN MANAGEMENT
+;; ============================================================================
+
+;; Admin Map
+(define-map Admins principal bool)
+
+;; Initialize primary admin
+(map-set Admins ADMIN true)
+
+;; Read-only: Check if address is admin
+(define-read-only (is-admin (address principal))
+    (default-to false (map-get? Admins address))
+)
+
+;; Admin: Add new admin
+(define-public (add-admin (new-admin principal))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (map-set Admins new-admin true)
+        (print { event: "admin-added", added-by: tx-sender, new-admin: new-admin })
+        (ok true)
+    )
+)
+
+;; Admin: Remove admin
+(define-public (remove-admin (old-admin principal))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        ;; Primary ADMIN cannot be removed for safety
+        (asserts! (not (is-eq old-admin ADMIN)) ERR-NOT-AUTHORIZED)
+        (map-delete Admins old-admin)
+        (print { event: "admin-removed", removed-by: tx-sender, old-admin: old-admin })
+        (ok true)
+    )
+)
+
+;; Admin: Emergency Shutdown
+(define-public (emergency-pause)
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (var-set contract-paused true)
+        (print { event: "emergency-pause", triggered-by: tx-sender })
+        (ok true)
+    )
+)
+
+;; Admin: Transfer Ownership (Primary ADMIN only)
+(define-public (transfer-ownership (new-owner principal))
+    (begin
+        (asserts! (is-eq tx-sender ADMIN) ERR-NOT-AUTHORIZED)
+        (map-set Admins new-owner true)
+        (print { event: "ownership-transfer-initiated", new-owner: new-owner })
+        (ok true)
+    )
+)
