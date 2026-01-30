@@ -34,3 +34,4 @@
 (define-constant ERR_NOT_SELLER (err u403))
 (define-constant ERR_TIMEOUT_NOT_REACHED (err u400))
 (define-constant ERR_ALREADY_ATTESTED (err u400))
+(define-constant ERR_NOT_DELIVERED (err u400))
