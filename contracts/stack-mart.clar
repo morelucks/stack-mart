@@ -15,3 +15,4 @@
 )
 
 (define-data-var next-id uint u1)
+(define-data-var next-bundle-id uint u1)
