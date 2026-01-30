@@ -16,3 +16,6 @@
 
 (define-data-var next-id uint u1)
 (define-data-var next-bundle-id uint u1)
+(define-data-var next-pack-id uint u1)
+
+;; Constants for new features
