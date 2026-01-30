@@ -796,3 +796,32 @@
     ERR_ESCROW_NOT_FOUND))
 
 ;; Cancel escrow (only if pending and by buyer or seller)
+(define-public (cancel-escrow (listing-id uint))
+  (match (map-get? escrows { listing-id: listing-id })
+    escrow
+      (match (map-get? listings { id: listing-id })
+        listing
+          (begin
+            (asserts! (is-eq (get state escrow) "pending") ERR_INVALID_STATE)
+            (asserts! (or (is-eq tx-sender (get buyer escrow)) (is-eq tx-sender (get seller listing))) ERR_NOT_OWNER)
+            ;; Refund to buyer
+            (let ((price (get amount escrow))
+                  (buyer-addr (get buyer escrow)))
+              (begin
+                ;; Transfer from contract to buyer
+                (try! (as-contract (stx-transfer? price tx-sender buyer-addr)))
+                
+                ;; Update escrow state
+                (map-set escrows
+                  { listing-id: listing-id }
+                  { buyer: buyer-addr
+                  , amount: price
+                  , created-at-block: (get created-at-block escrow)
+                  , state: "cancelled"
+                  , timeout-block: (get timeout-block escrow) })
+                (print { event: "escrow_cancelled", listing-id: listing-id })
+                (ok true))))
+        ERR_NOT_FOUND)
+    ERR_ESCROW_NOT_FOUND))
+
+;; Helper function to update reputation (optimized)
