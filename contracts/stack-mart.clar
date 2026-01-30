@@ -255,3 +255,6 @@
 (define-read-only (get-price-history (listing-id uint))
   (ok (default-to { history: (list) } (map-get? price-history { listing-id: listing-id }))))
 
+(define-read-only (get-listing-likes (listing-id uint))
+  (ok (get count (default-to { count: u0 } (map-get? listing-likes-count { listing-id: listing-id })))))
+
