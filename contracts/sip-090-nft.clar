@@ -159,9 +159,10 @@
     ;; Update token ownership
     (map-set token-owners token-id recipient)
     
-    ;; Update sender's token list
+    ;; Update sender's token list (optimized)
     (let ((sender-tokens (default-to (list) (map-get? owner-tokens sender))))
-      (map-set owner-tokens sender (filter-token-from-list sender-tokens token-id)))
+      (var-set token-to-remove token-id)
+      (map-set owner-tokens sender (remove-token-from-list sender-tokens token-id)))
     
     ;; Update recipient's token list
     (let ((recipient-tokens (default-to (list) (map-get? owner-tokens recipient))))
@@ -188,14 +189,14 @@
 ;; We need to define token-to-remove as a data variable for the filter to work
 (define-data-var token-to-remove uint u0)
 
-;; Updated helper function using data variable
-(define-private (filter-token-from-list-v2 (token-list (list 500 uint)) (token-to-remove uint))
-  (begin
-    (var-set token-to-remove token-to-remove)
-    (filter is-not-target-token-v2 token-list)))
+;; Optimized helper function to remove token from owner's list
+(define-private (remove-token-from-list (token-list (list 500 uint)) (token-to-remove uint))
+  (fold remove-token-helper token-list (list)))
 
-(define-private (is-not-target-token-v2 (token-id uint))
-  (not (is-eq token-id (var-get token-to-remove))))
+(define-private (remove-token-helper (token-id uint) (acc (list 500 uint)))
+  (if (is-eq token-id (var-get token-to-remove))
+    acc
+    (unwrap! (as-max-len? (append acc token-id) u500) acc)))
 ;; ============================================================================
 ;; VALIDATION FUNCTIONS
 ;; ============================================================================
@@ -412,3 +413,38 @@
       owner: none,
       metadata-uri: none
     }))
+;; ============================================================================
+;; OPTIMIZED FUNCTIONS
+;; ============================================================================
+
+;; Optimized mint function with better error handling
+(define-public (mint-optimized (recipient principal) (metadata-uri (optional (string-ascii 256))))
+  (let ((token-id (var-get next-token-id))
+        (current-supply (var-get total-supply)))
+    ;; Batch validation checks
+    (asserts! (and 
+      (not (var-get contract-paused))
+      (< current-supply MAX-SUPPLY)
+      (is-eq tx-sender CONTRACT-OWNER)
+      (is-none (map-get? token-owners token-id))) 
+      (if (var-get contract-paused) ERR-CONTRACT-PAUSED
+        (if (>= current-supply MAX-SUPPLY) ERR-MAX-SUPPLY-REACHED
+          (if (not (is-eq tx-sender CONTRACT-OWNER)) ERR-NOT-AUTHORIZED
+            ERR-ALREADY-EXISTS))))
+    
+    ;; Atomic updates
+    (map-set token-owners token-id recipient)
+    (match metadata-uri uri (map-set token-uris token-id uri) true)
+    
+    ;; Update counters atomically
+    (var-set next-token-id (+ token-id u1))
+    (var-set total-supply (+ current-supply u1))
+    
+    ;; Update owner tokens list
+    (let ((current-tokens (default-to (list) (map-get? owner-tokens recipient))))
+      (map-set owner-tokens recipient 
+        (unwrap! (as-max-len? (append current-tokens token-id) u500) ERR-INVALID-PARAMETERS)))
+    
+    ;; Emit optimized event
+    (print {type: "mint", token-id: token-id, recipient: recipient})
+    (ok token-id)))
