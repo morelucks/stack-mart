@@ -176,3 +176,35 @@
       (+ current-count u1))))
 
 ;; Enhanced listing creation with description
+(define-public (create-listing-enhanced 
+    (price uint) 
+    (royalty-bips uint) 
+    (royalty-recipient principal)
+    (description (string-ascii 1000))
+    (category (string-ascii 50))
+    (tags (list 10 (string-ascii 20))))
+  (begin
+    (asserts! (not (var-get paused)) ERR_PAUSED)
+    (asserts! (<= royalty-bips MAX_ROYALTY_BIPS) ERR_BAD_ROYALTY)
+    (asserts! (<= (len description) MAX_LISTING_DESCRIPTION_LENGTH) ERR_INVALID_LISTING)
+    (let ((id (var-get next-id)))
+      (begin
+        (map-set listings
+          { id: id }
+          { seller: tx-sender
+          , price: price
+          , royalty-bips: royalty-bips
+          , royalty-recipient: royalty-recipient
+          , nft-contract: none
+          , token-id: none
+          , license-terms: (some description) })
+        (map-set listing-categories
+          { listing-id: id }
+          { category: category
+          , tags: tags })
+        (var-set next-id (+ id u1))
+        (add-listing-to-seller-index tx-sender id)
+        (print { event: "listing_created", id: id, seller: tx-sender, price: price })
+        (ok id)))))
+
+;; Price history tracking
