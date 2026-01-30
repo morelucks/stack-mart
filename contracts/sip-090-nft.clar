@@ -196,3 +196,38 @@
 
 (define-private (is-not-target-token-v2 (token-id uint))
   (not (is-eq token-id (var-get token-to-remove))))
+;; ============================================================================
+;; VALIDATION FUNCTIONS
+;; ============================================================================
+
+;; Validate token ID exists
+(define-private (validate-token-exists (token-id uint))
+  (asserts! (is-some (map-get? token-owners token-id)) ERR-NOT-FOUND)
+  (ok true))
+
+;; Validate principal is not contract address
+(define-private (validate-principal (principal-to-check principal))
+  (asserts! (not (is-eq principal-to-check (as-contract tx-sender))) ERR-INVALID-RECIPIENT)
+  (ok true))
+
+;; Validate token ownership
+(define-private (validate-ownership (token-id uint) (claimed-owner principal))
+  (let ((actual-owner (unwrap! (map-get? token-owners token-id) ERR-NOT-FOUND)))
+    (asserts! (is-eq actual-owner claimed-owner) ERR-INVALID-OWNER)
+    (ok true)))
+
+;; Validate contract is not paused
+(define-private (validate-not-paused)
+  (asserts! (not (var-get contract-paused)) ERR-CONTRACT-PAUSED)
+  (ok true))
+
+;; Validate caller authorization for token operations
+(define-private (validate-caller-authorization (token-id uint))
+  (let ((token-owner (unwrap! (map-get? token-owners token-id) ERR-NOT-FOUND)))
+    (asserts! (is-eq tx-sender token-owner) ERR-NOT-AUTHORIZED)
+    (ok true)))
+
+;; Validate admin authorization
+(define-private (validate-admin-authorization)
+  (asserts! (is-eq tx-sender CONTRACT-OWNER) ERR-NOT-AUTHORIZED)
+  (ok true))
