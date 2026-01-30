@@ -1203,3 +1203,21 @@
 ;; (Duplicate Auction logic removed)
 
 ;; Rating system for completed transactions
+(define-public (rate-transaction (counterparty principal) (rating uint))
+  (begin
+    (asserts! (<= rating u5) ERR_BAD_ROYALTY) ;; 1-5 star rating
+    (asserts! (>= rating u1) ERR_BAD_ROYALTY)
+    ;; Update seller reputation with rating
+    (let ((current-rep (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } 
+                                   (map-get? reputation { user: counterparty }))))
+      (map-set reputation
+        { user: counterparty }
+        { successful-txs: (get successful-txs current-rep)
+        , failed-txs: (get failed-txs current-rep)
+        , rating-sum: (+ (get rating-sum current-rep) rating)
+        , rating-count: (+ (get rating-count current-rep) u1)
+        , total-volume: (get total-volume current-rep) }))
+    (print { event: "transaction_rated", user: counterparty, rating: rating })
+    (ok true)))
+
+;; Get average rating for a seller
