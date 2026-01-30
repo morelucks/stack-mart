@@ -26,3 +26,4 @@
 (define-data-var next-auction-id uint u1)
 (define-constant ERR_BAD_ROYALTY (err u400))
 (define-constant ERR_NOT_FOUND (err u404))
+(define-constant ERR_NOT_OWNER (err u403))
