@@ -1463,3 +1463,6 @@
 (define-read-only (get-seller-listing-id-at-index (seller principal) (index uint))
   (map-get? seller-listings { seller: seller, index: index }))
 
+(define-read-only (get-listings-by-seller (seller principal)) 
+  (ok "Use get-seller-listing-count and get-seller-listing-id-at-index to iterate"))
+
