@@ -417,3 +417,9 @@
 (define-read-only (get-listing-with-nft (id uint))
   (get-listing id))
 
+(define-read-only (get-escrow-status (listing-id uint))
+  (match (map-get? escrows { listing-id: listing-id })
+    escrow (ok escrow)
+    ERR_ESCROW_NOT_FOUND))
+
+;; Shared default reputation structure
