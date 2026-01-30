@@ -49,3 +49,4 @@
 (define-data-var paused bool false)
 
 ;; Marketplace fee constants
+(define-data-var marketplace-fee-bips uint u250) ;; 2.5% fee
