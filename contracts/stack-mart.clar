@@ -1396,3 +1396,7 @@
     ERR_NOT_FOUND))
 
 ;; Bulk operations for efficiency
+(define-public (bulk-create-listings (listings-data (list 10 { price: uint, royalty-bips: uint, royalty-recipient: principal })))
+  (let ((results (map create-single-listing listings-data)))
+    (ok results)))
+
