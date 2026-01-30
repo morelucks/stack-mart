@@ -1235,3 +1235,16 @@
   , tags: (list 5 (string-ascii 20))
   })
 
+(define-public (set-listing-category (listing-id uint) (category (string-ascii 50)) (tags (list 5 (string-ascii 20))))
+  (match (map-get? listings { id: listing-id })
+    listing
+      (begin
+        (asserts! (is-eq tx-sender (get seller listing)) ERR_NOT_OWNER)
+        (map-set listing-categories
+          { listing-id: listing-id }
+          { category: category
+          , tags: tags })
+        (ok true))
+    ERR_NOT_FOUND))
+
+;; Offer system - buyers can make offers on listings
