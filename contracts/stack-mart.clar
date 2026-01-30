@@ -60,3 +60,4 @@
 (define-constant MAX_ROYALTY_BIPS u2000) ;; 20% max royalty
 
 ;; Dispute resolution constants
+(define-constant MIN_STAKE_AMOUNT u1000) ;; Minimum stake amount
