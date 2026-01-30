@@ -65,3 +65,5 @@
 
 ;; Escrow timeout: 144 blocks (approximately 1 day assuming 10 min blocks)
 ;; Note: Using burn-block-height for timeout calculation
+(define-constant ESCROW_TIMEOUT_BLOCKS u144)
+
