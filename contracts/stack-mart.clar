@@ -463,3 +463,23 @@
       , total-transactions: (var-get total-transactions)
       , total-fees-collected: (var-get total-fees-collected) }))
 
+(define-public (create-listing (price uint) (royalty-bips uint) (royalty-recipient principal))
+  (begin
+    (asserts! (not (var-get paused)) ERR_PAUSED)
+    (asserts! (<= royalty-bips MAX_ROYALTY_BIPS) ERR_BAD_ROYALTY)
+    (let ((id (var-get next-id)))
+      (map-set listings
+        { id: id }
+        { seller: tx-sender
+        , price: price
+        , royalty-bips: royalty-bips
+        , royalty-recipient: royalty-recipient
+        , nft-contract: none
+        , token-id: none
+        , license-terms: none })
+      (var-set next-id (+ id u1))
+      (add-listing-to-seller-index tx-sender id)
+      (print { event: "listing_created", id: id, seller: tx-sender, price: price })
+      (ok id))))
+
+;; Create listing with NFT and license terms
