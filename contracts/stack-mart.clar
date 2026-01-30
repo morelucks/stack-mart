@@ -1422,3 +1422,13 @@
       u0))) ;; Return 0 for failed listings
 
 ;; Emergency functions for admin
+(define-public (emergency-pause-listing (listing-id uint))
+  (begin
+    (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER)
+    (map-set listing-status
+      { listing-id: listing-id }
+      { active: false
+      , featured: false
+      , promoted-until-block: u0 })
+    (ok true)))
+
