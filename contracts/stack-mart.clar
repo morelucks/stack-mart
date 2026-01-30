@@ -458,3 +458,8 @@
     (var-set total-transactions (+ (var-get total-transactions) u1))
     (var-set total-fees-collected (+ (var-get total-fees-collected) fee))))
 
+(define-read-only (get-marketplace-metrics)
+  (ok { total-volume: (var-get total-volume)
+      , total-transactions: (var-get total-transactions)
+      , total-fees-collected: (var-get total-fees-collected) }))
+
