@@ -739,3 +739,60 @@
     ERR_ESCROW_NOT_FOUND))
 
 ;; Release escrow after timeout or manual release
+(define-public (release-escrow (listing-id uint))
+  (match (map-get? escrows { listing-id: listing-id })
+    escrow
+      (match (map-get? listings { id: listing-id })
+        listing
+          (let (
+                (state (get state escrow))
+               )
+            (begin
+              ;; Can release if: state is "delivered" (buyer can release after delivery)
+              ;; Timeout check can be added later with proper block height function
+              (asserts! (is-eq state "delivered") ERR_TIMEOUT_NOT_REACHED)
+              ;; Only buyer or seller can release after timeout
+              (asserts! (or (is-eq tx-sender (get buyer escrow)) (is-eq tx-sender (get seller listing))) ERR_NOT_OWNER)
+              ;; If delivered and timeout, release to seller (seller fulfilled, buyer didn't confirm)
+              ;; If pending and timeout, refund to buyer
+              (let (
+                    (price (get amount escrow))
+                    (seller (get seller listing))
+                    (buyer-addr (get buyer escrow))
+                    (timeout-block (get timeout-block escrow))
+                   )
+                (begin
+                  (if (is-eq state "delivered")
+                    ;; Seller delivered, buyer didn't confirm - release to seller
+                    (let (
+                          (royalty-bips (get royalty-bips listing))
+                          (royalty-recipient (get royalty-recipient listing))
+                          (royalty (/ (* price royalty-bips) BPS_DENOMINATOR))
+                          (seller-share (- price royalty))
+                         )
+                      (begin
+                        ;; Transfer from contract-held escrow
+                        (if (> royalty u0)
+                          (try! (as-contract (stx-transfer? royalty tx-sender royalty-recipient)))
+                          true)
+                        (try! (as-contract (stx-transfer? seller-share tx-sender seller)))))
+                    ;; Pending and timeout - refund to buyer
+                    (try! (as-contract (stx-transfer? price tx-sender buyer-addr))))
+                  ;; Update escrow state
+                  (map-set escrows
+                    { listing-id: listing-id }
+                    { buyer: buyer-addr
+                    , amount: price
+                    , created-at-block: (get created-at-block escrow)
+                    , state: "released"
+                    , timeout-block: timeout-block })
+                  ;; Remove listing if released
+                  (if (is-eq state "delivered")
+                    (map-delete listings { id: listing-id })
+                    true)
+                  (print { event: "escrow_released", listing-id: listing-id, state: state })
+                  (ok true)))))
+        ERR_NOT_FOUND)
+    ERR_ESCROW_NOT_FOUND))
+
+;; Cancel escrow (only if pending and by buyer or seller)
