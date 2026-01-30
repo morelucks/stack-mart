@@ -44,3 +44,4 @@
 (define-constant ERR_INVALID_LISTING (err u400))
 (define-constant ERR_BUNDLE_EMPTY (err u400))
 (define-data-var admin principal tx-sender)
+(define-constant ERR_ALREADY_WISHLISTED (err u405))
