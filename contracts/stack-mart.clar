@@ -511,3 +511,49 @@
       (ok id))))
 
 ;; Legacy immediate purchase (kept for backward compatibility)
+(define-public (buy-listing (id uint))
+  (match (map-get? listings { id: id })
+    listing
+      (let (
+            (price (get price listing))
+            (royalty-bips (get royalty-bips listing))
+            (seller (get seller listing))
+            (royalty-recipient (get royalty-recipient listing))
+            (nft-contract-opt (get nft-contract listing))
+            (token-id-opt (get token-id listing))
+            (royalty (/ (* price royalty-bips) BPS_DENOMINATOR))
+            (marketplace-fee (/ (* price (var-get marketplace-fee-bips)) BPS_DENOMINATOR))
+            (seller-share (- (- price royalty) marketplace-fee))
+           )
+        (begin
+          ;; Transfer marketplace fee
+          (try! (stx-transfer? marketplace-fee tx-sender (var-get fee-recipient)))
+          
+          ;; Transfer royalty if applicable
+          ;; Transfer NFT if present (SIP-009 transfer function)
+          ;; Note: Seller must authorize this contract to transfer on their behalf
+          (match nft-contract-opt
+            nft-contract-principal
+              (match token-id-opt
+                token-id-value
+                  (match (contract-call? nft-contract-principal transfer token-id-value seller tx-sender)
+                    (ok transfer-success)
+                      (asserts! transfer-success ERR_NFT_TRANSFER_FAILED)
+                    (err error-code)
+                      (err error-code))
+                true)
+            true)
+          ;; Transfer payments
+          (if (> royalty u0)
+            (try! (stx-transfer? royalty tx-sender royalty-recipient))
+            true)
+          (try! (stx-transfer? seller-share tx-sender seller))
+          ;; Update marketplace metrics
+          (update-marketplace-metrics price marketplace-fee)
+          (map-delete listings { id: id })
+          (ok true)))
+    ERR_NOT_FOUND))
+
+;; Create escrow for listing purchase
+;; Note: In Clarity, holding STX in contract requires the contract to receive funds first
+;; For now, we track escrow state. Actual STX transfer happens on release.
