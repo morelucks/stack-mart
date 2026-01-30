@@ -208,3 +208,7 @@
         (ok id)))))
 
 ;; Price history tracking
+(define-map price-history
+  { listing-id: uint }
+  { history: (list 10 { price: uint, block-height: uint }) })
+
