@@ -310,3 +310,50 @@
     max-supply: MAX-SUPPLY,
     next-token-id: (var-get next-token-id)
   }))
+;; ============================================================================
+;; BATCH OPERATIONS
+;; ============================================================================
+
+;; Batch mint multiple NFTs to recipients
+(define-public (batch-mint (recipients (list 50 principal)) (metadata-uris (list 50 (optional (string-ascii 256)))))
+  (let ((recipients-count (len recipients))
+        (uris-count (len metadata-uris)))
+    ;; Validate inputs
+    (asserts! (> recipients-count u0) ERR-INVALID-PARAMETERS)
+    (asserts! (is-eq recipients-count uris-count) ERR-INVALID-PARAMETERS)
+    (try! (validate-admin-authorization))
+    (try! (validate-not-paused))
+    
+    ;; Check if we have enough supply left
+    (let ((current-supply (var-get total-supply)))
+      (asserts! (<= (+ current-supply recipients-count) MAX-SUPPLY) ERR-MAX-SUPPLY-REACHED))
+    
+    ;; Process batch mint
+    (fold batch-mint-helper (zip recipients metadata-uris) (ok (list)))
+    ))
+
+;; Helper function for batch minting
+(define-private (batch-mint-helper 
+  (recipient-data {recipient: principal, metadata-uri: (optional (string-ascii 256))}) 
+  (previous-result (response (list 50 uint) uint)))
+  (match previous-result
+    success-list 
+      (match (mint (get recipient recipient-data) (get metadata-uri recipient-data))
+        token-id (ok (unwrap! (as-max-len? (append success-list token-id) u50) ERR-INVALID-PARAMETERS))
+        error (err error))
+    error (err error)))
+
+;; Zip two lists together for batch operations
+(define-private (zip (list-a (list 50 principal)) (list-b (list 50 (optional (string-ascii 256)))))
+  (map create-pair-from-index (list u0 u1 u2 u3 u4 u5 u6 u7 u8 u9 u10 u11 u12 u13 u14 u15 u16 u17 u18 u19 u20 u21 u22 u23 u24 u25 u26 u27 u28 u29 u30 u31 u32 u33 u34 u35 u36 u37 u38 u39 u40 u41 u42 u43 u44 u45 u46 u47 u48 u49)))
+
+;; Helper to create pairs from index
+(define-private (create-pair-from-index (index uint))
+  {
+    recipient: (unwrap-panic (element-at recipients-list index)),
+    metadata-uri: (unwrap-panic (element-at uris-list index))
+  })
+
+;; We need data variables for the zip operation
+(define-data-var recipients-list (list 50 principal) (list))
+(define-data-var uris-list (list 50 (optional (string-ascii 256))) (list))
