@@ -1,0 +1,49 @@
+;; SIP-090 Non-Fungible Token Standard Implementation
+;; StackMart NFT Contract
+;; 
+;; This contract implements a fully compliant SIP-090 non-fungible token
+;; with comprehensive features for minting, transferring, and managing NFTs.
+
+;; ============================================================================
+;; CONSTANTS AND CONFIGURATION
+;; ============================================================================
+
+;; Contract metadata constants
+(define-constant CONTRACT-NAME "StackMart NFT")
+(define-constant CONTRACT-SYMBOL "SMNFT")
+(define-constant CONTRACT-BASE-URI "https://api.stackmart.io/nft/")
+
+;; Maximum supply limit
+(define-constant MAX-SUPPLY u10000)
+
+;; Contract owner
+(define-constant CONTRACT-OWNER tx-sender)
+
+;; Error constants following SIP-090 standards
+(define-constant ERR-NOT-AUTHORIZED (err u401))
+(define-constant ERR-NOT-FOUND (err u404))
+(define-constant ERR-INVALID-OWNER (err u403))
+(define-constant ERR-CONTRACT-PAUSED (err u503))
+(define-constant ERR-INVALID-PARAMETERS (err u400))
+(define-constant ERR-MAX-SUPPLY-REACHED (err u429))
+(define-constant ERR-ALREADY-EXISTS (err u409))
+(define-constant ERR-INVALID-RECIPIENT (err u422))
+
+;; ============================================================================
+;; DATA STORAGE
+;; ============================================================================
+
+;; Map to track token ownership
+(define-map token-owners uint principal)
+
+;; Map to track token metadata URIs
+(define-map token-uris uint (string-ascii 256))
+
+;; Map to track tokens owned by each principal
+(define-map owner-tokens principal (list 500 uint))
+
+;; Contract state variables
+(define-data-var total-supply uint u0)
+(define-data-var next-token-id uint u1)
+(define-data-var base-uri (string-ascii 256) CONTRACT-BASE-URI)
+(define-data-var contract-paused bool false)
