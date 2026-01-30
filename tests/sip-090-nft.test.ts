@@ -708,3 +708,75 @@ describe("SIP-090 NFT Contract", () => {
       expect(owner.result).toBeOk(Cl.some(Cl.principal(wallet1)));
     });
   });
+  describe("Emergency Functions", () => {
+    it("should allow owner to enable emergency mode", () => {
+      const emergencyResult = simnet.callPublicFn(
+        contractName,
+        "enable-emergency-mode",
+        [],
+        deployer
+      );
+
+      expect(emergencyResult.result).toBeOk(Cl.bool(true));
+
+      // Verify contract is paused when emergency mode is enabled
+      const isPaused = simnet.callReadOnlyFn(
+        contractName,
+        "is-paused",
+        [],
+        deployer
+      );
+      expect(isPaused.result).toBeOk(Cl.bool(true));
+    });
+
+    it("should allow owner to disable emergency mode", () => {
+      // First enable emergency mode
+      simnet.callPublicFn(contractName, "enable-emergency-mode", [], deployer);
+
+      // Then disable it
+      const disableResult = simnet.callPublicFn(
+        contractName,
+        "disable-emergency-mode",
+        [],
+        deployer
+      );
+
+      expect(disableResult.result).toBeOk(Cl.bool(true));
+    });
+
+    it("should reject emergency functions from non-owner", () => {
+      const emergencyResult = simnet.callPublicFn(
+        contractName,
+        "enable-emergency-mode",
+        [],
+        wallet1
+      );
+
+      expect(emergencyResult.result).toBeErr(Cl.uint(401)); // ERR-NOT-AUTHORIZED
+    });
+  });
+
+  describe("Multi-signature Operations", () => {
+    it("should allow owner to approve operations", () => {
+      const approveResult = simnet.callPublicFn(
+        contractName,
+        "approve-operation",
+        [Cl.stringAscii("test-operation")],
+        deployer
+      );
+
+      expect(approveResult.result).toBeOk(Cl.bool(true));
+    });
+
+    it("should reject operation approval from non-owner", () => {
+      const approveResult = simnet.callPublicFn(
+        contractName,
+        "approve-operation",
+        [Cl.stringAscii("test-operation")],
+        wallet1
+      );
+
+      expect(approveResult.result).toBeErr(Cl.uint(401)); // ERR-NOT-AUTHORIZED
+    });
+  });
+});
