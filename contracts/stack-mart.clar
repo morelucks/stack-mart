@@ -855,3 +855,8 @@
         (+ current-index u1)))))
 
 ;; Get transaction history for a principal (returns transaction by index)
+(define-read-only (get-transaction-history (principal principal) (index uint))
+  (match (map-get? transaction-history { principal: principal, tx-index: index })
+    tx (ok tx)
+    ERR_NOT_FOUND))
+
