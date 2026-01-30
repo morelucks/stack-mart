@@ -159,3 +159,10 @@
   , side: bool
   })
 
+(define-map dispute-votes
+  { dispute-id: uint
+  , voter: principal }
+  { vote: bool
+  , weight: uint
+  })
+
