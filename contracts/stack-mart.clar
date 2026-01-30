@@ -166,3 +166,13 @@
   , weight: uint
   })
 
+(define-private (add-listing-to-seller-index (seller principal) (listing-id uint))
+  (let ((current-count (default-to u0 (map-get? seller-listing-count { seller: seller }))))
+    (map-set seller-listings 
+      { seller: seller, index: current-count }
+      { listing-id: listing-id })
+    (map-set seller-listing-count
+      { seller: seller }
+      (+ current-count u1))))
+
+;; Enhanced listing creation with description
