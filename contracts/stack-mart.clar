@@ -1281,3 +1281,56 @@
           (ok offer-id)))
     ERR_NOT_FOUND))
 
+(define-public (accept-offer (offer-id uint))
+  (match (map-get? offers { id: offer-id })
+    offer
+      (match (map-get? listings { id: (get listing-id offer) })
+        listing
+          (begin
+            (asserts! (is-eq tx-sender (get seller listing)) ERR_NOT_OWNER)
+            (asserts! (not (get accepted offer)) ERR_INVALID_STATE)
+            (asserts! (not (get cancelled offer)) ERR_INVALID_STATE)
+            (asserts! (< burn-block-height (get expires-at-block offer)) ERR_TIMEOUT_NOT_REACHED)
+            (let ((price (get amount offer))
+                  (buyer (get buyer offer))
+                  (royalty-bips (get royalty-bips listing))
+                  (royalty-recipient (get royalty-recipient listing))
+                  (royalty (/ (* price royalty-bips) BPS_DENOMINATOR))
+                  (marketplace-fee (/ (* price (var-get marketplace-fee-bips)) BPS_DENOMINATOR))
+                  (seller-share (- (- price royalty) marketplace-fee)))
+              (begin
+                ;; Transfer payments from escrowed offer
+                (try! (as-contract (stx-transfer? marketplace-fee tx-sender (var-get fee-recipient))))
+                (if (> royalty u0)
+                  (try! (as-contract (stx-transfer? royalty tx-sender royalty-recipient)))
+                  true)
+                (try! (as-contract (stx-transfer? seller-share tx-sender tx-sender)))
+                ;; Transfer NFT if present
+                (match (get nft-contract listing)
+                  nft-contract-principal
+                    (match (get token-id listing)
+                      token-id-value
+                        (match (contract-call? nft-contract-principal transfer token-id-value tx-sender buyer)
+                          (ok transfer-success)
+                            (asserts! transfer-success ERR_NFT_TRANSFER_FAILED)
+                          (err error-code)
+                            (err error-code))
+                      true)
+                  true)
+                ;; Mark offer as accepted
+                (map-set offers
+                  { id: offer-id }
+                  { listing-id: (get listing-id offer)
+                  , buyer: buyer
+                  , amount: price
+                  , expires-at-block: (get expires-at-block offer)
+                  , accepted: true
+                  , cancelled: false })
+                ;; Remove listing - but keep in seller index as historical?
+                ;; For now we just remove from active listings map.
+                (map-delete listings { id: (get listing-id offer) })
+                (print { event: "offer_accepted", offer-id: offer-id, listing-id: (get listing-id offer), buyer: buyer, price: price })
+                (ok true))))
+        ERR_NOT_FOUND)
+    ERR_NOT_FOUND))
+
