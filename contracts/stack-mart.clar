@@ -871,3 +871,43 @@
     ERR_NOT_FOUND))
 
 ;; Create a dispute for an escrow
+(define-public (create-dispute (escrow-id uint) (reason (string-ascii 500)))
+  (match (map-get? escrows { listing-id: escrow-id })
+    escrow
+      (match (map-get? listings { id: escrow-id })
+        listing
+          (begin
+            ;; Only buyer or seller can create dispute
+            (asserts! (or (is-eq tx-sender (get buyer escrow)) (is-eq tx-sender (get seller listing))) ERR_NOT_OWNER)
+            ;; Escrow must be in delivered state
+            (asserts! (is-eq (get state escrow) "delivered") ERR_INVALID_STATE)
+            ;; Check dispute doesn't already exist
+            (let ((dispute-id (var-get next-dispute-id)))
+              (begin
+                (asserts! (is-none (map-get? disputes { id: dispute-id })) ERR_INVALID_STATE)
+                ;; Create dispute
+                (map-set disputes
+                  { id: dispute-id }
+                  { escrow-id: escrow-id
+                  , created-by: tx-sender
+                  , reason: reason
+                  , created-at-block: u0
+                  , resolved: false
+                  , buyer-stakes: u0
+                  , seller-stakes: u0
+                  , resolution: none })
+                ;; Update escrow state to disputed
+                (map-set escrows
+                  { listing-id: escrow-id }
+                  { buyer: (get buyer escrow)
+                  , amount: (get amount escrow)
+                  , created-at-block: (get created-at-block escrow)
+                  , state: "disputed"
+                  , timeout-block: (get timeout-block escrow) })
+                (var-set next-dispute-id (+ dispute-id u1))
+                (print { event: "dispute_created", id: dispute-id, escrow-id: escrow-id, reason: reason })
+                (ok dispute-id))))
+        ERR_NOT_FOUND)
+    ERR_ESCROW_NOT_FOUND))
+
+;; Stake on a dispute (side: true = buyer, false = seller)
