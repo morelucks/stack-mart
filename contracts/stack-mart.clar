@@ -448,3 +448,4 @@
 
 ;; Legacy function - kept for backward compatibility (no NFT)
 
+(define-data-var total-volume uint u0)
