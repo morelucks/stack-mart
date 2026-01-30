@@ -261,3 +261,5 @@
 (define-private (filter-id (id uint))
   (not (is-eq id (var-get remove-id-iter))))
 
+(define-data-var remove-id-iter uint u0)
+
