@@ -639,3 +639,67 @@
     (ok true)))
 
 ;; Buyer confirms receipt and releases escrow
+(define-public (confirm-receipt (listing-id uint))
+  (match (map-get? escrows { listing-id: listing-id })
+    escrow
+      (match (map-get? listings { id: listing-id })
+
+        listing
+          (begin
+            (asserts! (is-eq tx-sender (get buyer escrow)) ERR_NOT_BUYER)
+            (asserts! (is-eq (get state escrow) "delivered") ERR_INVALID_STATE)
+            ;; Release escrow payments
+            (let (
+                  (price (get amount escrow))
+                  (royalty-bips (get royalty-bips listing))
+                  (seller (get seller listing))
+                  (royalty-recipient (get royalty-recipient listing))
+                  (royalty (/ (* price royalty-bips) BPS_DENOMINATOR))
+                  (marketplace-fee (/ (* price (var-get marketplace-fee-bips)) BPS_DENOMINATOR))
+                  (seller-share (- (- price royalty) marketplace-fee))
+                 )
+              (begin
+                ;; Transfer marketplace fee
+                (try! (stx-transfer? marketplace-fee tx-sender (var-get fee-recipient)))
+                ;; Transfer payments from escrow
+                ;; Note: In a full implementation, STX would be transferred from contract-held escrow
+                ;; For now, this is a placeholder - actual transfer requires contract to hold funds
+                (if (> royalty u0)
+                  (try! (as-contract (stx-transfer? royalty tx-sender royalty-recipient)))
+                  true)
+                (try! (as-contract (stx-transfer? seller-share tx-sender seller)))
+                ;; Update delivery attestation if exists
+                (match (map-get? delivery-attestations { listing-id: listing-id })
+                  attestation
+                    (map-set delivery-attestations
+                      { listing-id: listing-id }
+                      { delivery-hash: (get delivery-hash attestation)
+                      , attested-at-block: (get attested-at-block attestation)
+                      , confirmed: true
+                      , rejected: false
+                      , rejection-reason: none })
+                  true)
+                ;; Update marketplace metrics
+                (update-marketplace-metrics price marketplace-fee)
+                ;; Update reputation - successful transaction
+                (update-reputation seller true price)
+                (update-reputation tx-sender true price)
+                ;; Update escrow state
+                (map-set escrows
+                  { listing-id: listing-id }
+                  { buyer: (get buyer escrow)
+                  , amount: price
+                  , created-at-block: (get created-at-block escrow)
+                  , state: "confirmed"
+                  , timeout-block: (get timeout-block escrow) })
+                ;; Record transaction history
+                (record-transaction seller listing-id tx-sender price true)
+                (record-transaction tx-sender listing-id seller price true)
+                ;; Remove listing
+                (map-delete listings { id: listing-id })
+                (print { event: "escrow_confirmed", listing-id: listing-id, price: price })
+                (ok true))))
+        ERR_NOT_FOUND)
+    ERR_ESCROW_NOT_FOUND))
+
+;; Buyer confirms delivery received (alias for confirm-receipt)
