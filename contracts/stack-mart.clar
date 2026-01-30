@@ -434,3 +434,6 @@
   (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } (map-get? reputation { user: user }))))
 
 ;; Legacy aliases for compatibility
+(define-read-only (get-seller-reputation (seller principal))
+  (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } (map-get? reputation { user: seller }))))
+
