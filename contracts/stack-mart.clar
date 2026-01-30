@@ -389,3 +389,11 @@
     ERR_NOT_FOUND))
 
 ;; Bundle and curated pack system
+(define-map bundles
+  { id: uint }
+  { listing-ids: (list 10 uint)
+  , discount-bips: uint
+  , creator: principal
+  , created-at-block: uint
+  })
+
