@@ -23,3 +23,4 @@
 (define-constant MAX_TAGS_PER_LISTING u10)
 (define-constant MIN_AUCTION_DURATION u144) ;; 1 day minimum
 (define-constant MAX_AUCTION_DURATION u1440) ;; 10 days maximum
+(define-data-var next-auction-id uint u1)
