@@ -113,3 +113,13 @@
   { count: uint })
 
 ;; Delivery attestations
+(define-map delivery-attestations
+  { listing-id: uint }
+  { delivery-hash: (buff 32)
+  , attested-at-block: uint
+  , confirmed: bool
+  , rejected: bool
+  , rejection-reason: (optional (string-ascii 200))
+  })
+
+;; Transaction history tracking
