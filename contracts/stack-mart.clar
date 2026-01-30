@@ -57,3 +57,6 @@
 (define-constant MAX_PACK_SIZE u20)
 (define-constant MAX_DISCOUNT_BIPS u5000) ;; 50% max discount
 (define-constant BPS_DENOMINATOR u10000)
+(define-constant MAX_ROYALTY_BIPS u2000) ;; 20% max royalty
+
+;; Dispute resolution constants
