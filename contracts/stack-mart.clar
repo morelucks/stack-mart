@@ -1250,3 +1250,13 @@
 ;; Offer system - buyers can make offers on listings
 (define-data-var next-offer-id uint u1)
 
+(define-map offers
+  { id: uint }
+  { listing-id: uint
+  , buyer: principal
+  , amount: uint
+  , expires-at-block: uint
+  , accepted: bool
+  , cancelled: bool
+  })
+
