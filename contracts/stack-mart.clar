@@ -32,3 +32,4 @@
 (define-constant ERR_INVALID_STATE (err u400))
 (define-constant ERR_NOT_BUYER (err u403))
 (define-constant ERR_NOT_SELLER (err u403))
+(define-constant ERR_TIMEOUT_NOT_REACHED (err u400))
