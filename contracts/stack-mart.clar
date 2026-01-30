@@ -414,3 +414,6 @@
     ERR_NOT_FOUND))
 
 ;; get-listing-with-nft is an alias for get-listing (both return same data)
+(define-read-only (get-listing-with-nft (id uint))
+  (get-listing id))
+
