@@ -1116,3 +1116,19 @@
         (ok bundle-id)))))
 
 ;; Buy a bundle (creates escrows for all listings in bundle with discount)
+(define-public (buy-bundle (bundle-id uint))
+  (match (map-get? bundles { id: bundle-id })
+    bundle
+      (let ((listing-ids (get listing-ids bundle))
+            (discount-bips (get discount-bips bundle)))
+        (begin
+          ;; Loop through listings and create escrows
+          ;; We use fold to iterate and accumulate result
+          (try! (fold create-bundle-escrow listing-ids (ok { discount: discount-bips, buyer: tx-sender })))
+          
+          ;; Delete bundle after purchase
+          (map-delete bundles { id: bundle-id })
+          (ok true)))
+    ERR_BUNDLE_NOT_FOUND))
+
+;; Helper to create escrow for a listing in a bundle
