@@ -83,3 +83,8 @@
   { seller: principal, index: uint } 
   { listing-id: uint })
 
+(define-map seller-listing-count
+  { seller: principal }
+  uint)
+
+;; Escrow state: pending, delivered, confirmed, disputed, released, cancelled
