@@ -707,3 +707,35 @@
   (confirm-receipt listing-id))
 
 ;; Buyer rejects delivery
+(define-public (reject-delivery (listing-id uint) (reason (string-ascii 200)))
+  (match (map-get? escrows { listing-id: listing-id })
+    escrow
+      (match (map-get? listings { id: listing-id })
+        listing
+          (begin
+            (asserts! (is-eq tx-sender (get buyer escrow)) ERR_NOT_BUYER)
+            (asserts! (is-eq (get state escrow) "delivered") ERR_INVALID_STATE)
+            ;; Update delivery attestation
+            (match (map-get? delivery-attestations { listing-id: listing-id })
+              attestation
+                (map-set delivery-attestations
+                  { listing-id: listing-id }
+                  { delivery-hash: (get delivery-hash attestation)
+                  , attested-at-block: (get attested-at-block attestation)
+                  , confirmed: false
+                  , rejected: true
+                  , rejection-reason: (some reason) })
+              true)
+            ;; Update reputation - failed transaction
+            (update-reputation (get seller listing) false u0)
+            (update-reputation tx-sender false u0)
+            ;; Record transaction history
+            (let ((price (get amount escrow)))
+              (begin
+                (record-transaction (get seller listing) listing-id tx-sender price false)
+                (record-transaction tx-sender listing-id (get seller listing) price false)
+                (ok true))))
+        ERR_NOT_FOUND)
+    ERR_ESCROW_NOT_FOUND))
+
+;; Release escrow after timeout or manual release
