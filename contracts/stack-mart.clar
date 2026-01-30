@@ -258,3 +258,6 @@
 (define-read-only (get-listing-likes (listing-id uint))
   (ok (get count (default-to { count: u0 } (map-get? listing-likes-count { listing-id: listing-id })))))
 
+(define-private (filter-id (id uint))
+  (not (is-eq id (var-get remove-id-iter))))
+
