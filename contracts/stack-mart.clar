@@ -943,3 +943,26 @@
     ERR_DISPUTE_NOT_FOUND))
 
 ;; Vote on a dispute (weighted by stake amount)
+(define-public (vote-on-dispute (dispute-id uint) (vote bool))
+  (match (map-get? disputes { id: dispute-id })
+    dispute
+      (match (map-get? dispute-stakes { dispute-id: dispute-id, staker: tx-sender })
+        stake
+          (begin
+            ;; Dispute must not be resolved
+            (asserts! (not (get resolved dispute)) ERR_DISPUTE_RESOLVED)
+            ;; Must have staked to vote
+            (asserts! (> (get amount stake) u0) ERR_INSUFFICIENT_STAKES)
+            ;; Vote must match stake side
+            (asserts! (is-eq vote (get side stake)) ERR_INVALID_SIDE)
+            ;; Record vote with weight = stake amount
+            (map-set dispute-votes
+              { dispute-id: dispute-id
+              , voter: tx-sender }
+              { vote: vote
+              , weight: (get amount stake) })
+            (ok true))
+        ERR_NOT_FOUND)
+    ERR_DISPUTE_NOT_FOUND))
+
+;; Resolve dispute based on weighted votes
