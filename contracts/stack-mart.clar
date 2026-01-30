@@ -45,3 +45,4 @@
 (define-constant ERR_BUNDLE_EMPTY (err u400))
 (define-data-var admin principal tx-sender)
 (define-constant ERR_ALREADY_WISHLISTED (err u405))
+(define-constant ERR_PAUSED (err u406))
