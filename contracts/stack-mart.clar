@@ -703,3 +703,7 @@
     ERR_ESCROW_NOT_FOUND))
 
 ;; Buyer confirms delivery received (alias for confirm-receipt)
+(define-public (confirm-delivery-received (listing-id uint))
+  (confirm-receipt listing-id))
+
+;; Buyer rejects delivery
