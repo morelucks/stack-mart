@@ -632,3 +632,10 @@
 
 ;; Seller confirms delivery (legacy function - kept for backward compatibility)
 ;; Note: New code should use attest-delivery with actual delivery hash
+(define-public (confirm-delivery (listing-id uint))
+  ;; For legacy compatibility, use zero buffer (32 bytes)
+  (let ((zero-hash 0x0000000000000000000000000000000000000000000000000000000000000000))
+    (try! (attest-delivery listing-id zero-hash))
+    (ok true)))
+
+;; Buyer confirms receipt and releases escrow
