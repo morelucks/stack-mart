@@ -557,3 +557,28 @@
 ;; Create escrow for listing purchase
 ;; Note: In Clarity, holding STX in contract requires the contract to receive funds first
 ;; For now, we track escrow state. Actual STX transfer happens on release.
+(define-public (buy-listing-escrow (id uint))
+  (match (map-get? listings { id: id })
+    listing
+      (begin
+        ;; Check escrow doesn't already exist
+        (asserts! (is-none (map-get? escrows { listing-id: id })) ERR_INVALID_STATE)
+        (let (
+              (price (get price listing))
+             )
+          (begin
+            ;; Create escrow record
+            ;; Transfer STX to contract
+            (try! (stx-transfer? price tx-sender (as-contract tx-sender)))
+            
+            (map-set escrows
+              { listing-id: id }
+              { buyer: tx-sender
+              , amount: price
+              , created-at-block: burn-block-height
+              , state: "pending"
+              , timeout-block: (+ burn-block-height ESCROW_TIMEOUT_BLOCKS) })
+            (ok true))))
+    ERR_NOT_FOUND))
+
+;; Seller attests delivery with delivery hash
