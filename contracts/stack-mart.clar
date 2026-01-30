@@ -227,3 +227,8 @@
     (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER) 
     (ok (var-set fee-recipient new-recipient))))
 
+(define-public (set-paused (new-paused bool))
+  (begin
+    (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER)
+    (ok (var-set paused new-paused))))
+
