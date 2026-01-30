@@ -1160,3 +1160,23 @@
 
 
 ;; Create a curated pack
+(define-public (create-curated-pack (listing-ids (list 20 uint)) (pack-price uint) (curator principal))
+  (begin
+    ;; Validate pack not empty
+    (asserts! (> (len listing-ids) u0) ERR_BUNDLE_EMPTY)
+    ;; Validate curator is tx-sender
+    (asserts! (is-eq tx-sender curator) ERR_NOT_OWNER)
+    ;; Validate all listings exist
+    ;; Note: In full implementation, would validate each listing
+    (let ((pack-id (var-get next-pack-id)))
+      (begin
+        (map-set packs
+          { id: pack-id }
+          { listing-ids: listing-ids
+          , price: pack-price
+          , curator: curator
+          , created-at-block: u0 })
+        (var-set next-pack-id (+ pack-id u1))
+        (ok pack-id)))))
+
+;; Buy a curated pack
