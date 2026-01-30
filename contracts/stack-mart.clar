@@ -263,3 +263,23 @@
 
 (define-data-var remove-id-iter uint u0)
 
+(define-public (toggle-wishlist (listing-id uint))
+  (let (
+    (current-wishlist (default-to (list) (get listing-ids (map-get? wishlists { user: tx-sender }))))
+  )
+    (if (is-some (index-of current-wishlist listing-id))
+      (begin
+        (var-set remove-id-iter listing-id)
+        (map-set wishlists { user: tx-sender } { listing-ids: (filter filter-id current-wishlist) })
+        ;; Decrement like count
+        (let ((current-likes (get count (default-to { count: u0 } (map-get? listing-likes-count { listing-id: listing-id })))))
+           (map-set listing-likes-count { listing-id: listing-id } { count: (if (> current-likes u0) (- current-likes u1) u0) }))
+        (ok false))
+      (begin
+        (map-set wishlists { user: tx-sender } { listing-ids: (unwrap! (as-max-len? (append current-wishlist listing-id) u100) (err u500)) })
+        ;; Increment like count
+        (let ((current-likes (get count (default-to { count: u0 } (map-get? listing-likes-count { listing-id: listing-id })))))
+           (map-set listing-likes-count { listing-id: listing-id } { count: (+ current-likes u1) }))
+        (ok true)))))
+
+;; Auction System
