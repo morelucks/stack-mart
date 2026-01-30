@@ -911,3 +911,35 @@
     ERR_ESCROW_NOT_FOUND))
 
 ;; Stake on a dispute (side: true = buyer, false = seller)
+(define-public (stake-on-dispute (dispute-id uint) (amount uint) (side bool))
+  (match (map-get? disputes { id: dispute-id })
+    dispute
+      (begin
+        ;; Dispute must not be resolved
+        (asserts! (not (get resolved dispute)) ERR_DISPUTE_RESOLVED)
+        ;; Minimum stake amount
+        (asserts! (>= amount MIN_STAKE_AMOUNT) ERR_INSUFFICIENT_STAKES)
+        
+        (let ((current-stake (default-to { amount: u0, side: false } (map-get? dispute-stakes { dispute-id: dispute-id, staker: tx-sender }))))
+          (begin
+            ;; Update or create stake
+            (map-set dispute-stakes
+              { dispute-id: dispute-id
+              , staker: tx-sender }
+              { amount: (+ (get amount current-stake) amount)
+              , side: side })
+            ;; Transfer stake amount to contract
+            (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+            
+            ;; Update dispute stakes totals (optimized)
+            (let ((buyer-stakes-new (if side (+ (get buyer-stakes dispute) amount) (get buyer-stakes dispute)))
+                  (seller-stakes-new (if side (get seller-stakes dispute) (+ (get seller-stakes dispute) amount))))
+              (map-set disputes
+                { id: dispute-id }
+                (merge dispute 
+                  { buyer-stakes: buyer-stakes-new
+                  , seller-stakes: seller-stakes-new }))
+            (ok true)))))
+    ERR_DISPUTE_NOT_FOUND))
+
+;; Vote on a dispute (weighted by stake amount)
