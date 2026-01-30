@@ -825,3 +825,17 @@
     ERR_ESCROW_NOT_FOUND))
 
 ;; Helper function to update reputation (optimized)
+(define-private (update-reputation (user principal) (success bool) (amount uint))
+  (let ((current-rep (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } 
+                                        (map-get? reputation { user: user }))))
+    (begin
+      (map-set reputation
+        { user: user }
+        { successful-txs: (if success (+ (get successful-txs current-rep) u1) (get successful-txs current-rep))
+        , failed-txs: (if success (get failed-txs current-rep) (+ (get failed-txs current-rep) u1))
+        , rating-sum: (get rating-sum current-rep)
+        , rating-count: (get rating-count current-rep)
+        , total-volume: (if success (+ (get total-volume current-rep) amount) (get total-volume current-rep)) })
+      (print { event: "reputation_updated", user: user, success: success, amount: amount }))))
+
+;; Helper function to record transaction history
