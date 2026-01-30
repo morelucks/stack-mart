@@ -79,3 +79,7 @@
   })
 
 ;; Seller Indexing Maps
+(define-map seller-listings 
+  { seller: principal, index: uint } 
+  { listing-id: uint })
+
