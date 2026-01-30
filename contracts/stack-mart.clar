@@ -340,3 +340,52 @@
           (ok true)))
     ERR_NOT_FOUND))
 
+(define-public (end-auction (auction-id uint) (nft-trait <sip009-nft-trait>))
+  (match (map-get? auctions { id: auction-id })
+    auction
+      (begin
+        (asserts! (is-eq (get state auction) "active") ERR_INVALID_STATE)
+        ;; Allow ending if expired OR if seller cancels (if no bids)
+        ;; If bids exist, must wait for expiry
+        (asserts! (or (>= burn-block-height (get end-block auction)) 
+                      (and (is-eq tx-sender (get seller auction)) (is-eq (get highest-bid auction) u0))) 
+                  ERR_TIMEOUT_NOT_REACHED)
+        
+        ;; Verify trait matches
+        (asserts! (is-eq (contract-of nft-trait) (get nft-contract auction)) ERR_INVALID_LISTING)
+
+        (let ((winner (get highest-bidder auction))
+              (price (get highest-bid auction))
+              (seller (get seller auction))
+              (token-id (get token-id auction)))
+           (begin
+             (match winner
+               buyer 
+                 (if (>= price (get reserve-price auction))
+                   (begin
+                     ;; Success - Transfer NFT to winner, STX to seller (minus fee)
+                     (try! (as-contract (contract-call? nft-trait transfer token-id tx-sender buyer)))
+                     ;; Transfer STX to seller (minus fee)
+                     (let ((marketplace-fee (/ (* price (var-get marketplace-fee-bips)) BPS_DENOMINATOR))
+                           (seller-share (- price marketplace-fee)))
+                       (try! (as-contract (stx-transfer? marketplace-fee tx-sender (var-get fee-recipient))))
+                       (try! (as-contract (stx-transfer? seller-share tx-sender seller))))
+                     
+                     (map-set auctions { id: auction-id } (merge auction { state: "ended" }))
+                     (ok true))
+                   (begin
+                     ;; Reserve not met - Return NFT to seller, refund buyer
+                     (try! (as-contract (stx-transfer? price tx-sender buyer)))
+                     (try! (as-contract (contract-call? nft-trait transfer token-id tx-sender seller)))
+                     (map-set auctions { id: auction-id } (merge auction { state: "ended" }))
+                     (ok false)))
+               ;; No bids - Return NFT to seller
+               (begin 
+                  (try! (as-contract (contract-call? nft-trait transfer token-id tx-sender seller)))
+                  (map-set auctions { id: auction-id } (merge auction { state: "ended" }))
+                  (ok true)))
+           )) 
+      )
+    ERR_NOT_FOUND))
+
+;; Bundle and curated pack system
