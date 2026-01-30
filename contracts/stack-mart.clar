@@ -14,3 +14,4 @@
   )
 )
 
+(define-data-var next-id uint u1)
