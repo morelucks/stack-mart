@@ -448,3 +448,62 @@
     ;; Emit optimized event
     (print {type: "mint", token-id: token-id, recipient: recipient})
     (ok token-id)))
+;; ============================================================================
+;; COMPREHENSIVE EVENT SYSTEM
+;; ============================================================================
+
+;; Enhanced event emission functions
+(define-private (emit-mint-event (token-id uint) (recipient principal) (metadata-uri (optional (string-ascii 256))))
+  (print {
+    type: "nft_mint_event",
+    token-contract: (as-contract tx-sender),
+    token-id: token-id,
+    recipient: recipient,
+    metadata-uri: metadata-uri,
+    block-height: burn-block-height,
+    total-supply: (var-get total-supply)
+  }))
+
+(define-private (emit-transfer-event-enhanced (token-id uint) (sender principal) (recipient principal))
+  (print {
+    type: "nft_transfer_event",
+    token-contract: (as-contract tx-sender),
+    token-id: token-id,
+    sender: sender,
+    recipient: recipient,
+    block-height: burn-block-height
+  }))
+
+(define-private (emit-admin-event (action (string-ascii 50)) (details (string-ascii 200)))
+  (print {
+    type: "admin_event",
+    action: action,
+    details: details,
+    admin: tx-sender,
+    block-height: burn-block-height
+  }))
+
+;; Enhanced transfer function with better events
+(define-public (transfer-enhanced (token-id uint) (sender principal) (recipient principal))
+  (let ((current-owner (unwrap! (map-get? token-owners token-id) ERR-NOT-FOUND)))
+    ;; All validations
+    (try! (validate-not-paused))
+    (asserts! (is-eq sender current-owner) ERR-INVALID-OWNER)
+    (asserts! (is-eq tx-sender sender) ERR-NOT-AUTHORIZED)
+    (asserts! (not (is-eq sender recipient)) ERR-INVALID-PARAMETERS)
+    
+    ;; Update ownership
+    (map-set token-owners token-id recipient)
+    
+    ;; Update token lists
+    (let ((sender-tokens (default-to (list) (map-get? owner-tokens sender))))
+      (var-set token-to-remove token-id)
+      (map-set owner-tokens sender (remove-token-from-list sender-tokens token-id)))
+    
+    (let ((recipient-tokens (default-to (list) (map-get? owner-tokens recipient))))
+      (map-set owner-tokens recipient 
+        (unwrap! (as-max-len? (append recipient-tokens token-id) u500) ERR-INVALID-PARAMETERS)))
+    
+    ;; Emit enhanced event
+    (emit-transfer-event-enhanced token-id sender recipient)
+    (ok true)))
