@@ -1221,3 +1221,11 @@
     (ok true)))
 
 ;; Get average rating for a seller
+(define-read-only (get-seller-average-rating (seller principal))
+  (let ((rep (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } 
+                         (map-get? reputation { user: seller }))))
+    (if (> (get rating-count rep) u0)
+      (ok (/ (get rating-sum rep) (get rating-count rep)))
+      (ok u0))))
+
+;; Listing categories and search
