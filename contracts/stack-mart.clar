@@ -966,3 +966,100 @@
     ERR_DISPUTE_NOT_FOUND))
 
 ;; Resolve dispute based on weighted votes
+(define-public (resolve-dispute (dispute-id uint))
+  (match (map-get? disputes { id: dispute-id })
+    dispute
+      (begin
+        ;; Dispute must not be resolved
+        (asserts! (not (get resolved dispute)) ERR_DISPUTE_RESOLVED)
+        ;; Must have minimum stakes to resolve
+        (let ((total-stakes (+ (get buyer-stakes dispute) (get seller-stakes dispute))))
+          (begin
+            (asserts! (>= total-stakes DISPUTE_RESOLUTION_THRESHOLD) ERR_INSUFFICIENT_STAKES)
+            ;; Calculate weighted votes (simplified - in full implementation would iterate all votes)
+            ;; For now, use stake amounts as proxy for votes
+            (let ((buyer-stakes (get buyer-stakes dispute))
+                  (seller-stakes (get seller-stakes dispute))
+                  (escrow-id (get escrow-id dispute)))
+              (begin
+                ;; Determine winner based on stake amounts
+                (if (> buyer-stakes seller-stakes)
+                  ;; Buyer wins - release to buyer
+                  (begin
+                    ;; Mark dispute as resolved
+                    (map-set disputes
+                      { id: dispute-id }
+                      { escrow-id: escrow-id
+                      , created-by: (get created-by dispute)
+                      , reason: (get reason dispute)
+                      , created-at-block: (get created-at-block dispute)
+                      , resolved: true
+                      , buyer-stakes: buyer-stakes
+                      , seller-stakes: seller-stakes
+                      , resolution: (some "buyer") })
+                    ;; Refund buyer from contract
+                    (try! (match (map-get? escrows { listing-id: escrow-id })
+                      escrow
+                        (let ((price (get amount escrow))
+                              (buyer-addr (get buyer escrow)))
+                          (begin
+                            ;; Transfer from contract
+                            (try! (as-contract (stx-transfer? price tx-sender buyer-addr)))
+                            (map-set escrows
+                              { listing-id: escrow-id }
+                              { buyer: buyer-addr
+                              , amount: price
+                              , created-at-block: (get created-at-block escrow)
+                              , state: "released"
+                              , timeout-block: (get timeout-block escrow) })
+                            (map-delete listings { id: escrow-id })
+                            (print { event: "dispute_resolved", id: dispute-id, winner: "buyer" })
+                            (ok true)))
+                      ERR_ESCROW_NOT_FOUND))
+                    true)
+                  ;; Seller wins - release to seller
+                  (begin
+                    ;; Mark dispute as resolved
+                    (map-set disputes
+                      { id: dispute-id }
+                      { escrow-id: escrow-id
+                      , created-by: (get created-by dispute)
+                      , reason: (get reason dispute)
+                      , created-at-block: (get created-at-block dispute)
+                      , resolved: true
+                      , buyer-stakes: buyer-stakes
+                      , seller-stakes: seller-stakes
+                      , resolution: (some "seller") })
+                    ;; Release to seller from contract
+                    (try! (match (map-get? escrows { listing-id: escrow-id })
+                      escrow
+                        (match (map-get? listings { id: escrow-id })
+                          listing
+                            (let ((price (get amount escrow))
+                                  (seller (get seller listing))
+                                  (royalty-bips (get royalty-bips listing))
+                                  (royalty-recipient (get royalty-recipient listing))
+                                  (royalty (/ (* price royalty-bips) BPS_DENOMINATOR))
+                                  (seller-share (- price royalty)))
+                              (begin
+                                ;; Transfer from contract
+                                (if (> royalty u0)
+                                  (try! (as-contract (stx-transfer? royalty tx-sender royalty-recipient)))
+                                  true)
+                                (try! (as-contract (stx-transfer? seller-share tx-sender seller)))
+                                (map-set escrows
+                                  { listing-id: escrow-id }
+                                  { buyer: (get buyer escrow)
+                                  , amount: price
+                                  , created-at-block: (get created-at-block escrow)
+                                  , state: "released"
+                                  , timeout-block: (get timeout-block escrow) })
+                                (map-delete listings { id: escrow-id })
+                                (print { event: "dispute_resolved", id: dispute-id, winner: "seller" })
+                                (ok true)))
+                          ERR_NOT_FOUND)
+                      ERR_ESCROW_NOT_FOUND))
+                    true)))
+                (ok true)))))
+    ERR_DISPUTE_NOT_FOUND))
+
