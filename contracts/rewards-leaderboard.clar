@@ -1073,3 +1073,163 @@
         (ok (get amount reward-data))
     )
 )
+;; ============================================================================
+;; GUILD SYSTEM
+;; ============================================================================
+
+;; Guild Management
+(define-map Guilds 
+    uint ;; guild-id
+    {
+        name: (string-ascii 30),
+        leader: principal,
+        member-count: uint,
+        total-points: uint,
+        created-block: uint,
+        active: bool
+    }
+)
+
+(define-map GuildMembers 
+    { guild-id: uint, member: principal }
+    {
+        joined-block: uint,
+        contribution-points: uint,
+        role: uint ;; 0=member, 1=officer, 2=leader
+    }
+)
+
+(define-map UserGuild principal uint) ;; Maps user to their guild-id
+(define-data-var next-guild-id uint u1)
+
+;; Guild Role Constants
+(define-constant GUILD-ROLE-MEMBER u0)
+(define-constant GUILD-ROLE-OFFICER u1)
+(define-constant GUILD-ROLE-LEADER u2)
+
+;; Public: Create Guild
+(define-public (create-guild (name (string-ascii 30)))
+    (let ((guild-id (var-get next-guild-id)))
+        ;; User cannot already be in a guild
+        (asserts! (is-none (map-get? UserGuild tx-sender)) ERR-INVALID-POINTS)
+        
+        (map-set Guilds guild-id
+            {
+                name: name,
+                leader: tx-sender,
+                member-count: u1,
+                total-points: u0,
+                created-block: burn-block-height,
+                active: true
+            }
+        )
+        
+        (map-set GuildMembers 
+            { guild-id: guild-id, member: tx-sender }
+            {
+                joined-block: burn-block-height,
+                contribution-points: u0,
+                role: GUILD-ROLE-LEADER
+            }
+        )
+        
+        (map-set UserGuild tx-sender guild-id)
+        (var-set next-guild-id (+ guild-id u1))
+        
+        (print { event: "guild-created", guild-id: guild-id, leader: tx-sender, name: name })
+        (ok guild-id)
+    )
+)
+
+;; Public: Join Guild
+(define-public (join-guild (guild-id uint))
+    (let ((guild-data (unwrap! (map-get? Guilds guild-id) ERR-USER-NOT-FOUND)))
+        ;; User cannot already be in a guild
+        (asserts! (is-none (map-get? UserGuild tx-sender)) ERR-INVALID-POINTS)
+        (asserts! (get active guild-data) ERR-CONTRACT-PAUSED)
+        
+        (map-set GuildMembers 
+            { guild-id: guild-id, member: tx-sender }
+            {
+                joined-block: burn-block-height,
+                contribution-points: u0,
+                role: GUILD-ROLE-MEMBER
+            }
+        )
+        
+        (map-set UserGuild tx-sender guild-id)
+        
+        ;; Update guild member count
+        (map-set Guilds guild-id 
+            (merge guild-data { member-count: (+ (get member-count guild-data) u1) })
+        )
+        
+        (print { event: "guild-joined", guild-id: guild-id, member: tx-sender })
+        (ok true)
+    )
+)
+
+;; Public: Leave Guild
+(define-public (leave-guild)
+    (let (
+        (guild-id (unwrap! (map-get? UserGuild tx-sender) ERR-USER-NOT-FOUND))
+        (guild-data (unwrap! (map-get? Guilds guild-id) ERR-USER-NOT-FOUND))
+        (member-data (unwrap! (map-get? GuildMembers { guild-id: guild-id, member: tx-sender }) ERR-USER-NOT-FOUND))
+    )
+        ;; Leaders cannot leave unless they transfer leadership
+        (asserts! (not (is-eq (get role member-data) GUILD-ROLE-LEADER)) ERR-NOT-AUTHORIZED)
+        
+        ;; Remove member
+        (map-delete GuildMembers { guild-id: guild-id, member: tx-sender })
+        (map-delete UserGuild tx-sender)
+        
+        ;; Update guild member count
+        (map-set Guilds guild-id 
+            (merge guild-data { member-count: (- (get member-count guild-data) u1) })
+        )
+        
+        (print { event: "guild-left", guild-id: guild-id, member: tx-sender })
+        (ok true)
+    )
+)
+
+;; Public: Add Guild Points (when member earns points)
+(define-public (add-guild-points (member principal) (points uint))
+    (let ((guild-id-opt (map-get? UserGuild member)))
+        (match guild-id-opt
+            guild-id 
+                (let (
+                    (guild-data (unwrap! (map-get? Guilds guild-id) ERR-USER-NOT-FOUND))
+                    (member-data (unwrap! (map-get? GuildMembers { guild-id: guild-id, member: member }) ERR-USER-NOT-FOUND))
+                )
+                    ;; Update guild total points
+                    (map-set Guilds guild-id 
+                        (merge guild-data { total-points: (+ (get total-points guild-data) points) })
+                    )
+                    
+                    ;; Update member contribution
+                    (map-set GuildMembers { guild-id: guild-id, member: member }
+                        (merge member-data { contribution-points: (+ (get contribution-points member-data) points) })
+                    )
+                    
+                    (ok true)
+                )
+            (ok false) ;; User not in guild, no action needed
+        )
+    )
+)
+
+;; Read-only: Get Guild Info
+(define-read-only (get-guild-info (guild-id uint))
+    (map-get? Guilds guild-id)
+)
+
+;; Read-only: Get User's Guild
+(define-read-only (get-user-guild (user principal))
+    (map-get? UserGuild user)
+)
+
+;; Read-only: Get Guild Member Info
+(define-read-only (get-guild-member-info (guild-id uint) (member principal))
+    (map-get? GuildMembers { guild-id: guild-id, member: member })
+)
