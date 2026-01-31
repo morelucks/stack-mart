@@ -147,6 +147,14 @@
         (update-streak user)
         (check-and-update-tier user (+ (get total-points current-stats) total-new-points))
         (update-global-stats total-new-points)
+        
+        ;; New integrations: Update guild points, seasonal activity, achievements, combos
+        (unwrap! (add-guild-points user total-new-points) (ok true))
+        (unwrap! (log-seasonal-activity user total-new-points) (ok true))
+        (unwrap! (check-comprehensive-achievements user) (ok true))
+        (unwrap! (update-combo COMBO-ACTIVITY) (ok true))
+        (unwrap! (auto-update-milestones user) (ok true))
+        
         (ok true)
     )
 ))
