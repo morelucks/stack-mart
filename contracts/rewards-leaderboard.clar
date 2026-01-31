@@ -2141,3 +2141,176 @@
         note: "Mock data for integration testing"
     })
 )
+;; ============================================================================
+;; EXPANDED ACHIEVEMENT SYSTEM
+;; ============================================================================
+
+;; Extended Achievement Categories
+(define-constant ACHIEVEMENT-SOCIAL-BUTTERFLY u11) ;; Join guild + refer 5 users
+(define-constant ACHIEVEMENT-SEASON-CHAMPION u12) ;; Win a season
+(define-constant ACHIEVEMENT-MILESTONE-MASTER u13) ;; Complete 10 milestones
+(define-constant ACHIEVEMENT-CROSS-CHAIN-EXPERT u14) ;; Activity on 5+ partner contracts
+(define-constant ACHIEVEMENT-ANALYTICS-GURU u15) ;; High engagement metrics
+(define-constant ACHIEVEMENT-POOL-WINNER u16) ;; Win reward pool distribution
+(define-constant ACHIEVEMENT-STREAK-LEGEND u17) ;; 100+ day streak
+(define-constant ACHIEVEMENT-POINT-MILLIONAIRE u18) ;; 1M+ points
+(define-constant ACHIEVEMENT-GUILD-LEADER u19) ;; Lead successful guild
+(define-constant ACHIEVEMENT-EARLY-ADOPTER u20) ;; First 100 users
+
+;; Achievement Progress Tracking
+(define-map AchievementProgress
+    { user: principal, achievement-id: uint }
+    {
+        current-progress: uint,
+        target-progress: uint,
+        progress-percentage: uint,
+        last-updated: uint
+    }
+)
+
+;; Achievement Categories
+(define-map AchievementCategories
+    uint ;; category-id
+    {
+        name: (string-ascii 30),
+        description: (string-ascii 100),
+        total-achievements: uint
+    }
+)
+
+;; Category Constants
+(define-constant CATEGORY-ENGAGEMENT u1)
+(define-constant CATEGORY-SOCIAL u2)
+(define-constant CATEGORY-COMPETITIVE u3)
+(define-constant CATEGORY-TECHNICAL u4)
+(define-constant CATEGORY-MILESTONE u5)
+
+;; Public: Update Achievement Progress
+(define-public (update-achievement-progress 
+    (user principal)
+    (achievement-id uint)
+    (progress-increment uint))
+    (let (
+        (current-progress (default-to 
+            {
+                current-progress: u0,
+                target-progress: u100,
+                progress-percentage: u0,
+                last-updated: u0
+            }
+            (map-get? AchievementProgress { user: user, achievement-id: achievement-id })
+        ))
+        (new-progress (+ (get current-progress current-progress) progress-increment))
+        (target (get target-progress current-progress))
+        (percentage (/ (* new-progress u100) target))
+    )
+        (map-set AchievementProgress { user: user, achievement-id: achievement-id }
+            {
+                current-progress: new-progress,
+                target-progress: target,
+                progress-percentage: percentage,
+                last-updated: burn-block-height
+            }
+        )
+        
+        ;; Check if achievement should be unlocked
+        (if (>= percentage u100)
+            (unlock-achievement user achievement-id ACHIEVEMENT-REWARD-MEDIUM)
+            false
+        )
+        
+        (ok true)
+    )
+)
+
+;; Public: Check Multiple Achievements
+(define-public (check-comprehensive-achievements (user principal))
+    (let (
+        (stats (unwrap! (get-user-stats user) ERR-USER-NOT-FOUND))
+        (streak (get current-streak (get-user-streak user)))
+        (guild-id (get-user-guild user))
+        (cross-contract-count (default-to u0 (map-get? UserCrossContractCount user)))
+    )
+        ;; Social Butterfly: Guild + Referrals
+        (if (and (is-some guild-id) (>= (len (default-to (list) (map-get? Referrals user))) u5))
+            (unlock-achievement user ACHIEVEMENT-SOCIAL-BUTTERFLY ACHIEVEMENT-REWARD-LARGE)
+            false
+        )
+        
+        ;; Cross-Chain Expert
+        (if (>= cross-contract-count u5)
+            (unlock-achievement user ACHIEVEMENT-CROSS-CHAIN-EXPERT ACHIEVEMENT-REWARD-MEDIUM)
+            false
+        )
+        
+        ;; Streak Legend
+        (if (>= streak u100)
+            (unlock-achievement user ACHIEVEMENT-STREAK-LEGEND ACHIEVEMENT-REWARD-LARGE)
+            false
+        )
+        
+        ;; Point Millionaire
+        (if (>= (get total-points stats) u1000000)
+            (unlock-achievement user ACHIEVEMENT-POINT-MILLIONAIRE ACHIEVEMENT-REWARD-LARGE)
+            false
+        )
+        
+        (ok true)
+    )
+)
+
+;; Admin: Create Achievement Category
+(define-public (create-achievement-category
+    (category-id uint)
+    (name (string-ascii 30))
+    (description (string-ascii 100)))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (map-set AchievementCategories category-id
+            {
+                name: name,
+                description: description,
+                total-achievements: u0
+            }
+        )
+        (print { event: "achievement-category-created", category-id: category-id, name: name })
+        (ok true)
+    )
+)
+
+;; Read-only: Get Achievement Progress
+(define-read-only (get-achievement-progress (user principal) (achievement-id uint))
+    (map-get? AchievementProgress { user: user, achievement-id: achievement-id })
+)
+
+;; Read-only: Get User Achievement Summary
+(define-read-only (get-user-achievement-summary (user principal))
+    (let (
+        (total-unlocked (fold count-achievements 
+            (list ACHIEVEMENT-FIRST-ACTIVITY ACHIEVEMENT-STREAK-WEEK ACHIEVEMENT-STREAK-MONTH 
+                  ACHIEVEMENT-REFERRAL-CHAMPION ACHIEVEMENT-LIBRARY-MASTER ACHIEVEMENT-GITHUB-CONTRIBUTOR
+                  ACHIEVEMENT-TIER-GOLD ACHIEVEMENT-TIER-PLATINUM ACHIEVEMENT-TIER-DIAMOND
+                  ACHIEVEMENT-POINTS-10K ACHIEVEMENT-SOCIAL-BUTTERFLY ACHIEVEMENT-SEASON-CHAMPION)
+            { user: user, count: u0 }
+        ))
+    )
+        (ok {
+            total-achievements: (get count total-unlocked),
+            recent-achievements: (list), ;; Would need additional tracking for recent ones
+            progress-summary: "Achievement system active"
+        })
+    )
+)
+
+;; Private: Count Achievements Helper
+(define-private (count-achievements (achievement-id uint) (acc { user: principal, count: uint }))
+    (if (has-achievement (get user acc) achievement-id)
+        { user: (get user acc), count: (+ (get count acc) u1) }
+        acc
+    )
+)
+
+;; Read-only: Get Achievement Category
+(define-read-only (get-achievement-category (category-id uint))
+    (map-get? AchievementCategories category-id)
+)
