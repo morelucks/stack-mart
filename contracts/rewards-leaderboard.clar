@@ -2883,3 +2883,200 @@
 (define-read-only (get-endorsement (endorser principal) (endorsed principal))
     (map-get? UserEndorsements { endorser: endorser, endorsed: endorsed })
 )
+;; ============================================================================
+;; GAMIFICATION ENHANCEMENTS
+;; ============================================================================
+
+;; Daily Challenges
+(define-map DailyChallenges
+    uint ;; challenge-id
+    {
+        name: (string-ascii 50),
+        description: (string-ascii 100),
+        target-value: uint,
+        reward-points: uint,
+        challenge-type: uint,
+        active-date: uint,
+        completion-count: uint
+    }
+)
+
+;; User Challenge Progress
+(define-map UserChallengeProgress
+    { user: principal, challenge-id: uint }
+    {
+        progress: uint,
+        completed: bool,
+        completed-block: (optional uint)
+    }
+)
+
+;; Combo System
+(define-map UserCombos
+    principal
+    {
+        current-combo: uint,
+        max-combo: uint,
+        combo-type: uint,
+        last-action-block: uint
+    }
+)
+
+(define-data-var next-challenge-id uint u1)
+
+;; Challenge Types
+(define-constant CHALLENGE-DAILY-ACTIVITY u0)
+(define-constant CHALLENGE-SOCIAL-INTERACTION u1)
+(define-constant CHALLENGE-SKILL-DEMONSTRATION u2)
+(define-constant CHALLENGE-COMMUNITY-CONTRIBUTION u3)
+
+;; Combo Types
+(define-constant COMBO-ACTIVITY u0)
+(define-constant COMBO-SOCIAL u1)
+(define-constant COMBO-LEARNING u2)
+
+;; Admin: Create Daily Challenge
+(define-public (create-daily-challenge
+    (name (string-ascii 50))
+    (description (string-ascii 100))
+    (target-value uint)
+    (reward-points uint)
+    (challenge-type uint))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (validate-string-input name) ERR-INVALID-POINTS)
+        (asserts! (> target-value u0) ERR-INVALID-POINTS)
+        (asserts! (<= challenge-type u3) ERR-INVALID-POINTS)
+        
+        (let ((challenge-id (var-get next-challenge-id)))
+            (map-set DailyChallenges challenge-id
+                {
+                    name: name,
+                    description: description,
+                    target-value: target-value,
+                    reward-points: reward-points,
+                    challenge-type: challenge-type,
+                    active-date: (/ burn-block-height BLOCKS-PER-DAY),
+                    completion-count: u0
+                }
+            )
+            (var-set next-challenge-id (+ challenge-id u1))
+            
+            (print { event: "daily-challenge-created", challenge-id: challenge-id, name: name })
+            (ok challenge-id)
+        )
+    )
+)
+
+;; Public: Update Challenge Progress
+(define-public (update-challenge-progress (challenge-id uint) (progress-increment uint))
+    (let (
+        (challenge-data (unwrap! (map-get? DailyChallenges challenge-id) ERR-USER-NOT-FOUND))
+        (current-progress (default-to 
+            {
+                progress: u0,
+                completed: false,
+                completed-block: none
+            }
+            (map-get? UserChallengeProgress { user: tx-sender, challenge-id: challenge-id })
+        ))
+        (new-progress (+ (get progress current-progress) progress-increment))
+        (is-completed (>= new-progress (get target-value challenge-data)))
+    )
+        ;; Check if challenge is for today
+        (asserts! (is-eq (get active-date challenge-data) (/ burn-block-height BLOCKS-PER-DAY)) ERR-COOLDOWN-ACTIVE)
+        (asserts! (not (get completed current-progress)) (ok true))
+        
+        (map-set UserChallengeProgress { user: tx-sender, challenge-id: challenge-id }
+            {
+                progress: new-progress,
+                completed: is-completed,
+                completed-block: (if is-completed (some burn-block-height) none)
+            }
+        )
+        
+        (if is-completed
+            (begin
+                ;; Award challenge reward
+                (let ((current-claimable (default-to u0 (map-get? ClaimableRewards tx-sender))))
+                    (map-set ClaimableRewards tx-sender (+ current-claimable (get reward-points challenge-data)))
+                )
+                ;; Update completion count
+                (map-set DailyChallenges challenge-id
+                    (merge challenge-data { completion-count: (+ (get completion-count challenge-data) u1) })
+                )
+                (print { event: "challenge-completed", user: tx-sender, challenge-id: challenge-id })
+            )
+            (print { event: "challenge-progress", user: tx-sender, challenge-id: challenge-id, progress: new-progress })
+        )
+        
+        (ok is-completed)
+    )
+)
+
+;; Public: Update Combo
+(define-public (update-combo (combo-type uint))
+    (let (
+        (current-combo (default-to 
+            {
+                current-combo: u0,
+                max-combo: u0,
+                combo-type: combo-type,
+                last-action-block: u0
+            }
+            (map-get? UserCombos tx-sender)
+        ))
+        (blocks-since-last (- burn-block-height (get last-action-block current-combo)))
+        (combo-broken (> blocks-since-last BLOCKS-PER-DAY))
+        (new-combo (if combo-broken u1 (+ (get current-combo current-combo) u1)))
+        (new-max (max new-combo (get max-combo current-combo)))
+    )
+        (map-set UserCombos tx-sender
+            {
+                current-combo: new-combo,
+                max-combo: new-max,
+                combo-type: combo-type,
+                last-action-block: burn-block-height
+            }
+        )
+        
+        ;; Bonus points for high combos
+        (if (and (> new-combo u5) (is-eq (mod new-combo u5) u0))
+            (let ((bonus-points (* new-combo u10)))
+                (let ((current-claimable (default-to u0 (map-get? ClaimableRewards tx-sender))))
+                    (map-set ClaimableRewards tx-sender (+ current-claimable bonus-points))
+                )
+                (print { event: "combo-bonus", user: tx-sender, combo: new-combo, bonus: bonus-points })
+            )
+            false
+        )
+        
+        (ok new-combo)
+    )
+)
+
+;; Read-only: Get Daily Challenge
+(define-read-only (get-daily-challenge (challenge-id uint))
+    (map-get? DailyChallenges challenge-id)
+)
+
+;; Read-only: Get User Challenge Progress
+(define-read-only (get-user-challenge-progress (user principal) (challenge-id uint))
+    (map-get? UserChallengeProgress { user: user, challenge-id: challenge-id })
+)
+
+;; Read-only: Get User Combo
+(define-read-only (get-user-combo (user principal))
+    (map-get? UserCombos user)
+)
+
+;; Read-only: Get Today's Challenges
+(define-read-only (get-todays-challenges)
+    (let ((today (/ burn-block-height BLOCKS-PER-DAY)))
+        (ok {
+            date: today,
+            total-challenges: (var-get next-challenge-id),
+            note: "Challenge details require individual queries"
+        })
+    )
+)
