@@ -2450,3 +2450,132 @@
         (ok true)
     )
 )
+;; ============================================================================
+;; NOTIFICATION AND ALERT SYSTEM
+;; ============================================================================
+
+;; Notification Types
+(define-constant NOTIFICATION-ACHIEVEMENT u0)
+(define-constant NOTIFICATION-TIER-UPGRADE u1)
+(define-constant NOTIFICATION-SEASON-END u2)
+(define-constant NOTIFICATION-GUILD-INVITE u3)
+(define-constant NOTIFICATION-REWARD-AVAILABLE u4)
+
+;; User Notifications
+(define-map UserNotifications
+    { user: principal, notification-id: uint }
+    {
+        notification-type: uint,
+        title: (string-ascii 50),
+        message: (string-ascii 100),
+        read: bool,
+        created-block: uint,
+        expires-block: uint
+    }
+)
+
+(define-map UserNotificationCount principal uint)
+
+;; System Alerts
+(define-map SystemAlerts
+    uint ;; alert-id
+    {
+        alert-type: uint,
+        message: (string-ascii 100),
+        severity: uint,
+        active: bool,
+        created-block: uint
+    }
+)
+
+(define-data-var next-alert-id uint u1)
+
+;; Public: Create User Notification
+(define-public (create-notification
+    (user principal)
+    (notification-type uint)
+    (title (string-ascii 50))
+    (message (string-ascii 100))
+    (expires-in-blocks uint))
+    (let (
+        (notification-count (default-to u0 (map-get? UserNotificationCount user)))
+        (notification-id notification-count)
+    )
+        (asserts! (<= notification-type u4) ERR-INVALID-POINTS)
+        (asserts! (validate-string-input title) ERR-INVALID-POINTS)
+        
+        (map-set UserNotifications { user: user, notification-id: notification-id }
+            {
+                notification-type: notification-type,
+                title: title,
+                message: message,
+                read: false,
+                created-block: burn-block-height,
+                expires-block: (+ burn-block-height expires-in-blocks)
+            }
+        )
+        
+        (map-set UserNotificationCount user (+ notification-count u1))
+        
+        (print { event: "notification-created", user: user, type: notification-type, title: title })
+        (ok notification-id)
+    )
+)
+
+;; Public: Mark Notification as Read
+(define-public (mark-notification-read (notification-id uint))
+    (let (
+        (notification-data (unwrap! (map-get? UserNotifications { user: tx-sender, notification-id: notification-id }) ERR-USER-NOT-FOUND))
+    )
+        (map-set UserNotifications { user: tx-sender, notification-id: notification-id }
+            (merge notification-data { read: true })
+        )
+        (ok true)
+    )
+)
+
+;; Admin: Create System Alert
+(define-public (create-system-alert
+    (alert-type uint)
+    (message (string-ascii 100))
+    (severity uint))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (<= severity u3) ERR-INVALID-POINTS)
+        
+        (let ((alert-id (var-get next-alert-id)))
+            (map-set SystemAlerts alert-id
+                {
+                    alert-type: alert-type,
+                    message: message,
+                    severity: severity,
+                    active: true,
+                    created-block: burn-block-height
+                }
+            )
+            (var-set next-alert-id (+ alert-id u1))
+            
+            (print { event: "system-alert-created", alert-id: alert-id, severity: severity })
+            (ok alert-id)
+        )
+    )
+)
+
+;; Read-only: Get User Notifications
+(define-read-only (get-user-notifications (user principal) (limit uint))
+    (let ((notification-count (default-to u0 (map-get? UserNotificationCount user))))
+        (ok {
+            total-notifications: notification-count,
+            unread-count: u0, ;; Would need additional tracking
+            has-more: (> notification-count limit)
+        })
+    )
+)
+
+;; Read-only: Get System Alerts
+(define-read-only (get-active-system-alerts)
+    (ok {
+        total-alerts: (var-get next-alert-id),
+        note: "Active alerts require iteration"
+    })
+)
