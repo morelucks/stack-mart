@@ -2579,3 +2579,131 @@
         note: "Active alerts require iteration"
     })
 )
+;; ============================================================================
+;; ADVANCED LEADERBOARD FEATURES
+;; ============================================================================
+
+;; Leaderboard Categories
+(define-map CategoryLeaderboards
+    { category: uint, rank: uint }
+    { user: principal, score: uint }
+)
+
+;; Category Constants
+(define-constant LEADERBOARD-OVERALL u0)
+(define-constant LEADERBOARD-WEEKLY u1)
+(define-constant LEADERBOARD-MONTHLY u2)
+(define-constant LEADERBOARD-SEASONAL u3)
+(define-constant LEADERBOARD-GUILD u4)
+
+;; Leaderboard Metadata
+(define-map LeaderboardMeta
+    uint ;; category
+    {
+        name: (string-ascii 30),
+        description: (string-ascii 100),
+        last-updated: uint,
+        total-entries: uint
+    }
+)
+
+;; User Rankings History
+(define-map UserRankingHistory
+    { user: principal, period: uint }
+    {
+        rank: uint,
+        score: uint,
+        category: uint,
+        recorded-block: uint
+    }
+)
+
+;; Admin: Update Category Leaderboard
+(define-public (update-category-leaderboard
+    (category uint)
+    (rankings (list 10 { user: principal, score: uint })))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (<= category u4) ERR-INVALID-POINTS)
+        
+        ;; Update leaderboard entries
+        (map update-leaderboard-entry rankings)
+        
+        ;; Update metadata
+        (map-set LeaderboardMeta category
+            {
+                name: "Category Leaderboard",
+                description: "Updated leaderboard rankings",
+                last-updated: burn-block-height,
+                total-entries: (len rankings)
+            }
+        )
+        
+        (print { event: "leaderboard-updated", category: category, entries: (len rankings) })
+        (ok true)
+    )
+)
+
+;; Private: Update Leaderboard Entry Helper
+(define-private (update-leaderboard-entry (entry { user: principal, score: uint }))
+    (let ((rank u1)) ;; Simplified ranking
+        (map-set CategoryLeaderboards { category: LEADERBOARD-OVERALL, rank: rank }
+            { user: (get user entry), score: (get score entry) }
+        )
+        true
+    )
+)
+
+;; Public: Record User Ranking
+(define-public (record-user-ranking
+    (user principal)
+    (rank uint)
+    (score uint)
+    (category uint)
+    (period uint))
+    (begin
+        (map-set UserRankingHistory { user: user, period: period }
+            {
+                rank: rank,
+                score: score,
+                category: category,
+                recorded-block: burn-block-height
+            }
+        )
+        (ok true)
+    )
+)
+
+;; Read-only: Get Category Leaderboard
+(define-read-only (get-category-leaderboard (category uint) (limit uint))
+    (let ((meta (map-get? LeaderboardMeta category)))
+        (ok {
+            category: category,
+            metadata: meta,
+            note: "Full rankings require off-chain processing"
+        })
+    )
+)
+
+;; Read-only: Get User Ranking History
+(define-read-only (get-user-ranking-history (user principal) (period uint))
+    (map-get? UserRankingHistory { user: user, period: period })
+)
+
+;; Read-only: Calculate Rank Change
+(define-read-only (calculate-rank-change (user principal) (current-period uint) (previous-period uint))
+    (let (
+        (current-rank (map-get? UserRankingHistory { user: user, period: current-period }))
+        (previous-rank (map-get? UserRankingHistory { user: user, period: previous-period }))
+    )
+        (match current-rank
+            current-data
+                (match previous-rank
+                    previous-data
+                        (ok (- (get rank previous-data) (get rank current-data))) ;; Positive = improvement
+                    (ok 0) ;; No previous data
+                )
+            (err ERR-USER-NOT-FOUND)
+        )
+    )
+)
