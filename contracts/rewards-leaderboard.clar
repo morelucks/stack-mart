@@ -147,6 +147,14 @@
         (update-streak user)
         (check-and-update-tier user (+ (get total-points current-stats) total-new-points))
         (update-global-stats total-new-points)
+        
+        ;; New integrations: Update guild points, seasonal activity, achievements, combos
+        (unwrap! (add-guild-points user total-new-points) (ok true))
+        (unwrap! (log-seasonal-activity user total-new-points) (ok true))
+        (unwrap! (check-comprehensive-achievements user) (ok true))
+        (unwrap! (update-combo COMBO-ACTIVITY) (ok true))
+        (unwrap! (auto-update-milestones user) (ok true))
+        
         (ok true)
     )
 ))
@@ -917,5 +925,2323 @@
     (begin
         (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
         (ok (var-set global-multiplier-cap new-cap))
+    )
+)
+;; ============================================================================
+;; SEASONAL COMPETITION SYSTEM
+;; ============================================================================
+
+;; Season Management
+(define-map Seasons 
+    uint ;; season-id
+    {
+        name: (string-ascii 50),
+        start-block: uint,
+        end-block: uint,
+        reward-pool: uint,
+        active: bool,
+        theme-multiplier: uint
+    }
+)
+
+(define-map SeasonalPoints 
+    { user: principal, season-id: uint }
+    uint
+)
+
+(define-map SeasonalRankings
+    { season-id: uint, rank: uint }
+    { user: principal, points: uint }
+)
+
+(define-map SeasonRewards
+    { user: principal, season-id: uint }
+    { amount: uint, claimed: bool }
+)
+
+(define-data-var current-season-id uint u0)
+(define-data-var next-season-id uint u1)
+
+;; Admin: Create New Season
+(define-public (create-season 
+    (name (string-ascii 50))
+    (duration-blocks uint)
+    (reward-pool uint)
+    (theme-multiplier uint))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (> duration-blocks u0) ERR-INVALID-POINTS)
+        (asserts! (> reward-pool u0) ERR-INVALID-POINTS)
+        (asserts! (> theme-multiplier u0) ERR-INVALID-POINTS)
+        
+        (let ((season-id (var-get next-season-id)))
+            (map-set Seasons season-id
+                {
+                    name: name,
+                    start-block: burn-block-height,
+                    end-block: (+ burn-block-height duration-blocks),
+                    reward-pool: reward-pool,
+                    active: true,
+                    theme-multiplier: theme-multiplier
+                }
+            )
+            (var-set next-season-id (+ season-id u1))
+            (var-set current-season-id season-id)
+            (print { event: "season-created", season-id: season-id, name: name })
+            (ok season-id)
+        )
+    )
+)
+
+;; Public: Log Seasonal Activity
+(define-public (log-seasonal-activity (user principal) (points uint))
+    (let (
+        (season-id (var-get current-season-id))
+        (season-data (unwrap! (map-get? Seasons season-id) ERR-INVALID-POINTS))
+    )
+        (asserts! (get active season-data) ERR-CONTRACT-PAUSED)
+        (asserts! (<= burn-block-height (get end-block season-data)) ERR-COOLDOWN-ACTIVE)
+        
+        (let (
+            (current-seasonal (default-to u0 (map-get? SeasonalPoints { user: user, season-id: season-id })))
+            (theme-mult (get theme-multiplier season-data))
+            (adjusted-points (/ (* points theme-mult) u100))
+        )
+            (map-set SeasonalPoints 
+                { user: user, season-id: season-id }
+                (+ current-seasonal adjusted-points)
+            )
+            (print { event: "seasonal-activity", user: user, season-id: season-id, points: adjusted-points })
+            (ok true)
+        )
+    )
+)
+
+;; Read-only: Get Seasonal Points
+(define-read-only (get-seasonal-points (user principal) (season-id uint))
+    (default-to u0 (map-get? SeasonalPoints { user: user, season-id: season-id }))
+)
+
+;; Read-only: Get Season Info
+(define-read-only (get-season-info (season-id uint))
+    (map-get? Seasons season-id)
+)
+
+;; Admin: End Season and Distribute Rewards
+(define-public (end-season (season-id uint) (top-users (list 10 principal)) (rewards (list 10 uint)))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (is-eq (len top-users) (len rewards)) ERR-INVALID-POINTS)
+        
+        (let ((season-data (unwrap! (map-get? Seasons season-id) ERR-INVALID-POINTS)))
+            (asserts! (get active season-data) ERR-CONTRACT-PAUSED)
+            
+            ;; Mark season as inactive
+            (map-set Seasons season-id (merge season-data { active: false }))
+            
+            ;; Set up rewards for top users
+            (map distribute-season-rewards top-users rewards)
+            
+            (print { event: "season-ended", season-id: season-id })
+            (ok true)
+        )
+    )
+)
+
+;; Private: Distribute Season Rewards Helper
+(define-private (distribute-season-rewards (user principal) (reward uint))
+    (let ((season-id (var-get current-season-id)))
+        (map-set SeasonRewards
+            { user: user, season-id: season-id }
+            { amount: reward, claimed: false }
+        )
+        true
+    )
+)
+
+;; Public: Claim Season Rewards
+(define-public (claim-season-rewards (season-id uint))
+    (let (
+        (reward-data (unwrap! (map-get? SeasonRewards { user: tx-sender, season-id: season-id }) ERR-USER-NOT-FOUND))
+    )
+        (asserts! (not (get claimed reward-data)) ERR-COOLDOWN-ACTIVE)
+        
+        ;; Mark as claimed
+        (map-set SeasonRewards 
+            { user: tx-sender, season-id: season-id }
+            (merge reward-data { claimed: true })
+        )
+        
+        ;; Add to claimable rewards
+        (let ((current-claimable (default-to u0 (map-get? ClaimableRewards tx-sender))))
+            (map-set ClaimableRewards tx-sender (+ current-claimable (get amount reward-data)))
+        )
+        
+        (print { event: "season-rewards-claimed", user: tx-sender, season-id: season-id, amount: (get amount reward-data) })
+        (ok (get amount reward-data))
+    )
+)
+;; ============================================================================
+;; GUILD SYSTEM
+;; ============================================================================
+
+;; Guild Management
+(define-map Guilds 
+    uint ;; guild-id
+    {
+        name: (string-ascii 30),
+        leader: principal,
+        member-count: uint,
+        total-points: uint,
+        created-block: uint,
+        active: bool
+    }
+)
+
+(define-map GuildMembers 
+    { guild-id: uint, member: principal }
+    {
+        joined-block: uint,
+        contribution-points: uint,
+        role: uint ;; 0=member, 1=officer, 2=leader
+    }
+)
+
+(define-map UserGuild principal uint) ;; Maps user to their guild-id
+(define-data-var next-guild-id uint u1)
+
+;; Guild Role Constants
+(define-constant GUILD-ROLE-MEMBER u0)
+(define-constant GUILD-ROLE-OFFICER u1)
+(define-constant GUILD-ROLE-LEADER u2)
+
+;; Public: Create Guild
+(define-public (create-guild (name (string-ascii 30)))
+    (let ((guild-id (var-get next-guild-id)))
+        ;; User cannot already be in a guild
+        (asserts! (is-none (map-get? UserGuild tx-sender)) ERR-INVALID-POINTS)
+        
+        (map-set Guilds guild-id
+            {
+                name: name,
+                leader: tx-sender,
+                member-count: u1,
+                total-points: u0,
+                created-block: burn-block-height,
+                active: true
+            }
+        )
+        
+        (map-set GuildMembers 
+            { guild-id: guild-id, member: tx-sender }
+            {
+                joined-block: burn-block-height,
+                contribution-points: u0,
+                role: GUILD-ROLE-LEADER
+            }
+        )
+        
+        (map-set UserGuild tx-sender guild-id)
+        (var-set next-guild-id (+ guild-id u1))
+        
+        (print { event: "guild-created", guild-id: guild-id, leader: tx-sender, name: name })
+        (ok guild-id)
+    )
+)
+
+;; Public: Join Guild
+(define-public (join-guild (guild-id uint))
+    (let ((guild-data (unwrap! (map-get? Guilds guild-id) ERR-USER-NOT-FOUND)))
+        ;; User cannot already be in a guild
+        (asserts! (is-none (map-get? UserGuild tx-sender)) ERR-INVALID-POINTS)
+        (asserts! (get active guild-data) ERR-CONTRACT-PAUSED)
+        
+        (map-set GuildMembers 
+            { guild-id: guild-id, member: tx-sender }
+            {
+                joined-block: burn-block-height,
+                contribution-points: u0,
+                role: GUILD-ROLE-MEMBER
+            }
+        )
+        
+        (map-set UserGuild tx-sender guild-id)
+        
+        ;; Update guild member count
+        (map-set Guilds guild-id 
+            (merge guild-data { member-count: (+ (get member-count guild-data) u1) })
+        )
+        
+        (print { event: "guild-joined", guild-id: guild-id, member: tx-sender })
+        (ok true)
+    )
+)
+
+;; Public: Leave Guild
+(define-public (leave-guild)
+    (let (
+        (guild-id (unwrap! (map-get? UserGuild tx-sender) ERR-USER-NOT-FOUND))
+        (guild-data (unwrap! (map-get? Guilds guild-id) ERR-USER-NOT-FOUND))
+        (member-data (unwrap! (map-get? GuildMembers { guild-id: guild-id, member: tx-sender }) ERR-USER-NOT-FOUND))
+    )
+        ;; Leaders cannot leave unless they transfer leadership
+        (asserts! (not (is-eq (get role member-data) GUILD-ROLE-LEADER)) ERR-NOT-AUTHORIZED)
+        
+        ;; Remove member
+        (map-delete GuildMembers { guild-id: guild-id, member: tx-sender })
+        (map-delete UserGuild tx-sender)
+        
+        ;; Update guild member count
+        (map-set Guilds guild-id 
+            (merge guild-data { member-count: (- (get member-count guild-data) u1) })
+        )
+        
+        (print { event: "guild-left", guild-id: guild-id, member: tx-sender })
+        (ok true)
+    )
+)
+
+;; Public: Add Guild Points (when member earns points)
+(define-public (add-guild-points (member principal) (points uint))
+    (let ((guild-id-opt (map-get? UserGuild member)))
+        (match guild-id-opt
+            guild-id 
+                (let (
+                    (guild-data (unwrap! (map-get? Guilds guild-id) ERR-USER-NOT-FOUND))
+                    (member-data (unwrap! (map-get? GuildMembers { guild-id: guild-id, member: member }) ERR-USER-NOT-FOUND))
+                )
+                    ;; Update guild total points
+                    (map-set Guilds guild-id 
+                        (merge guild-data { total-points: (+ (get total-points guild-data) points) })
+                    )
+                    
+                    ;; Update member contribution
+                    (map-set GuildMembers { guild-id: guild-id, member: member }
+                        (merge member-data { contribution-points: (+ (get contribution-points member-data) points) })
+                    )
+                    
+                    (ok true)
+                )
+            (ok false) ;; User not in guild, no action needed
+        )
+    )
+)
+
+;; Read-only: Get Guild Info
+(define-read-only (get-guild-info (guild-id uint))
+    (map-get? Guilds guild-id)
+)
+
+;; Read-only: Get User's Guild
+(define-read-only (get-user-guild (user principal))
+    (map-get? UserGuild user)
+)
+
+;; Read-only: Get Guild Member Info
+(define-read-only (get-guild-member-info (guild-id uint) (member principal))
+    (map-get? GuildMembers { guild-id: guild-id, member: member })
+)
+;; ============================================================================
+;; CROSS-CONTRACT INTEGRATION
+;; ============================================================================
+
+;; Partner Contract Management
+(define-map PartnerContracts 
+    principal ;; contract-address
+    {
+        name: (string-ascii 30),
+        point-multiplier: uint,
+        active: bool,
+        registered-block: uint,
+        total-activities: uint
+    }
+)
+
+;; Activity Deduplication
+(define-map ActivityHashes 
+    (buff 32) ;; activity-hash
+    {
+        user: principal,
+        contract: principal,
+        processed-block: uint
+    }
+)
+
+;; Cross-Contract Activity Log
+(define-map CrossContractActivities
+    { user: principal, activity-id: uint }
+    {
+        contract: principal,
+        activity-type: (string-ascii 20),
+        points-earned: uint,
+        timestamp: uint,
+        hash: (buff 32)
+    }
+)
+
+(define-map UserCrossContractCount principal uint)
+
+;; Admin: Register Partner Contract
+(define-public (register-partner-contract 
+    (contract-address principal)
+    (name (string-ascii 30))
+    (point-multiplier uint))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (> point-multiplier u0) ERR-INVALID-POINTS)
+        
+        (map-set PartnerContracts contract-address
+            {
+                name: name,
+                point-multiplier: point-multiplier,
+                active: true,
+                registered-block: burn-block-height,
+                total-activities: u0
+            }
+        )
+        
+        (print { event: "partner-registered", contract: contract-address, name: name, multiplier: point-multiplier })
+        (ok true)
+    )
+)
+
+;; Public: Log Cross-Contract Activity
+(define-public (log-cross-contract-activity 
+    (user principal)
+    (activity-type (string-ascii 20))
+    (base-points uint)
+    (activity-hash (buff 32)))
+    (let (
+        (partner-data (unwrap! (map-get? PartnerContracts contract-caller) ERR-NOT-AUTHORIZED))
+        (existing-hash (map-get? ActivityHashes activity-hash))
+    )
+        (asserts! (get active partner-data) ERR-CONTRACT-PAUSED)
+        ;; Prevent duplicate processing
+        (asserts! (is-none existing-hash) ERR-COOLDOWN-ACTIVE)
+        
+        (let (
+            (multiplier (get point-multiplier partner-data))
+            (final-points (/ (* base-points multiplier) u100))
+            (activity-count (default-to u0 (map-get? UserCrossContractCount user)))
+        )
+            ;; Record activity hash to prevent duplicates
+            (map-set ActivityHashes activity-hash
+                {
+                    user: user,
+                    contract: contract-caller,
+                    processed-block: burn-block-height
+                }
+            )
+            
+            ;; Log detailed activity
+            (map-set CrossContractActivities
+                { user: user, activity-id: activity-count }
+                {
+                    contract: contract-caller,
+                    activity-type: activity-type,
+                    points-earned: final-points,
+                    timestamp: burn-block-height,
+                    hash: activity-hash
+                }
+            )
+            
+            ;; Update counters
+            (map-set UserCrossContractCount user (+ activity-count u1))
+            (map-set PartnerContracts contract-caller
+                (merge partner-data { total-activities: (+ (get total-activities partner-data) u1) })
+            )
+            
+            ;; Add points to user's regular account
+            (unwrap! (log-contract-activity user (/ final-points u10)) ERR-BUFFER-OVERFLOW)
+            
+            (print { event: "cross-contract-activity", user: user, contract: contract-caller, points: final-points })
+            (ok final-points)
+        )
+    )
+)
+
+;; Read-only: Get Partner Contract Info
+(define-read-only (get-partner-contract (contract-address principal))
+    (map-get? PartnerContracts contract-address)
+)
+
+;; Read-only: Check Activity Hash
+(define-read-only (is-activity-processed (activity-hash (buff 32)))
+    (is-some (map-get? ActivityHashes activity-hash))
+)
+
+;; Read-only: Get Cross-Contract Activity
+(define-read-only (get-cross-contract-activity (user principal) (activity-id uint))
+    (map-get? CrossContractActivities { user: user, activity-id: activity-id })
+)
+
+;; Admin: Update Partner Status
+(define-public (update-partner-status (contract-address principal) (active bool))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (let ((partner-data (unwrap! (map-get? PartnerContracts contract-address) ERR-USER-NOT-FOUND)))
+            (map-set PartnerContracts contract-address (merge partner-data { active: active }))
+            (print { event: "partner-status-updated", contract: contract-address, active: active })
+            (ok true)
+        )
+    )
+)
+;; ============================================================================
+;; ADVANCED ANALYTICS SYSTEM
+;; ============================================================================
+
+;; Analytics Data Storage
+(define-map UserEngagementMetrics
+    principal
+    {
+        total-sessions: uint,
+        avg-session-length: uint,
+        last-session-block: uint,
+        retention-score: uint,
+        engagement-trend: uint ;; 0=declining, 1=stable, 2=growing
+    }
+)
+
+(define-map SystemHealthMetrics
+    uint ;; metric-type: 0=daily, 1=weekly, 2=monthly
+    {
+        active-users: uint,
+        total-activities: uint,
+        points-distributed: uint,
+        avg-user-points: uint,
+        timestamp: uint
+    }
+)
+
+(define-map PerformanceTrends
+    { user: principal, period: uint }
+    {
+        points-earned: uint,
+        activities-completed: uint,
+        rank-change: int,
+        period-start: uint,
+        period-end: uint
+    }
+)
+
+(define-data-var analytics-enabled bool true)
+
+;; Public: Update User Engagement
+(define-public (update-user-engagement (user principal) (session-length uint))
+    (begin
+        (asserts! (var-get analytics-enabled) (ok false))
+        
+        (let (
+            (current-metrics (default-to 
+                {
+                    total-sessions: u0,
+                    avg-session-length: u0,
+                    last-session-block: u0,
+                    retention-score: u100,
+                    engagement-trend: u1
+                }
+                (map-get? UserEngagementMetrics user)
+            ))
+            (new-sessions (+ (get total-sessions current-metrics) u1))
+            (new-avg (/ (+ (* (get avg-session-length current-metrics) (get total-sessions current-metrics)) session-length) new-sessions))
+        )
+            (map-set UserEngagementMetrics user
+                (merge current-metrics {
+                    total-sessions: new-sessions,
+                    avg-session-length: new-avg,
+                    last-session-block: burn-block-height
+                })
+            )
+            (ok true)
+        )
+    )
+)
+
+;; Admin: Record System Health Metrics
+(define-public (record-system-health 
+    (metric-type uint)
+    (active-users uint)
+    (total-activities uint)
+    (points-distributed uint))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (<= metric-type u2) ERR-INVALID-POINTS)
+        
+        (let ((avg-points (if (> active-users u0) (/ points-distributed active-users) u0)))
+            (map-set SystemHealthMetrics metric-type
+                {
+                    active-users: active-users,
+                    total-activities: total-activities,
+                    points-distributed: points-distributed,
+                    avg-user-points: avg-points,
+                    timestamp: burn-block-height
+                }
+            )
+            (print { event: "system-health-recorded", metric-type: metric-type, active-users: active-users })
+            (ok true)
+        )
+    )
+)
+
+;; Public: Record Performance Trend
+(define-public (record-performance-trend 
+    (user principal)
+    (period uint)
+    (points-earned uint)
+    (activities-completed uint)
+    (rank-change int))
+    (begin
+        (map-set PerformanceTrends { user: user, period: period }
+            {
+                points-earned: points-earned,
+                activities-completed: activities-completed,
+                rank-change: rank-change,
+                period-start: (- burn-block-height u1000), ;; Approximate period start
+                period-end: burn-block-height
+            }
+        )
+        (ok true)
+    )
+)
+
+;; Read-only: Get User Engagement Metrics
+(define-read-only (get-user-engagement (user principal))
+    (map-get? UserEngagementMetrics user)
+)
+
+;; Read-only: Get System Health
+(define-read-only (get-system-health (metric-type uint))
+    (map-get? SystemHealthMetrics metric-type)
+)
+
+;; Read-only: Get Performance Trend
+(define-read-only (get-performance-trend (user principal) (period uint))
+    (map-get? PerformanceTrends { user: user, period: period })
+)
+
+;; Read-only: Calculate Retention Rate
+(define-read-only (calculate-retention-rate (user principal))
+    (let (
+        (metrics (map-get? UserEngagementMetrics user))
+        (user-stats (get-user-stats user))
+    )
+        (match metrics
+            user-metrics 
+                (let (
+                    (days-since-last (/ (- burn-block-height (get last-session-block user-metrics)) BLOCKS-PER-DAY))
+                    (total-sessions (get total-sessions user-metrics))
+                )
+                    (ok (if (< days-since-last u7) u100 ;; Active within week = 100%
+                        (if (< days-since-last u30) u75 ;; Active within month = 75%
+                            (if (> total-sessions u10) u50 ;; Has history = 50%
+                                u25 ;; Low retention = 25%
+                            )
+                        )
+                    ))
+                )
+            (ok u0) ;; No metrics = 0%
+        )
+    )
+)
+
+;; Admin: Toggle Analytics
+(define-public (toggle-analytics (enabled bool))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (ok (var-set analytics-enabled enabled))
+    )
+)
+;; ============================================================================
+;; MILESTONE TRACKING SYSTEM
+;; ============================================================================
+
+;; Milestone Definitions
+(define-map Milestones
+    uint ;; milestone-id
+    {
+        name: (string-ascii 50),
+        description: (string-ascii 100),
+        target-value: uint,
+        reward-points: uint,
+        prerequisite: (optional uint),
+        milestone-type: uint, ;; 0=points, 1=activities, 2=streak, 3=referrals
+        active: bool
+    }
+)
+
+;; User Milestone Progress
+(define-map UserMilestoneProgress
+    { user: principal, milestone-id: uint }
+    {
+        current-value: uint,
+        completed: bool,
+        completed-block: (optional uint),
+        reward-claimed: bool
+    }
+)
+
+(define-data-var next-milestone-id uint u1)
+
+;; Milestone Type Constants
+(define-constant MILESTONE-TYPE-POINTS u0)
+(define-constant MILESTONE-TYPE-ACTIVITIES u1)
+(define-constant MILESTONE-TYPE-STREAK u2)
+(define-constant MILESTONE-TYPE-REFERRALS u3)
+
+;; Admin: Create Milestone
+(define-public (create-milestone
+    (name (string-ascii 50))
+    (description (string-ascii 100))
+    (target-value uint)
+    (reward-points uint)
+    (milestone-type uint)
+    (prerequisite (optional uint)))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (> target-value u0) ERR-INVALID-POINTS)
+        (asserts! (> reward-points u0) ERR-INVALID-POINTS)
+        (asserts! (<= milestone-type u3) ERR-INVALID-POINTS)
+        
+        ;; Validate prerequisite exists if provided
+        (match prerequisite
+            prereq-id (asserts! (is-some (map-get? Milestones prereq-id)) ERR-USER-NOT-FOUND)
+            true
+        )
+        
+        (let ((milestone-id (var-get next-milestone-id)))
+            (map-set Milestones milestone-id
+                {
+                    name: name,
+                    description: description,
+                    target-value: target-value,
+                    reward-points: reward-points,
+                    prerequisite: prerequisite,
+                    milestone-type: milestone-type,
+                    active: true
+                }
+            )
+            (var-set next-milestone-id (+ milestone-id u1))
+            (print { event: "milestone-created", milestone-id: milestone-id, name: name })
+            (ok milestone-id)
+        )
+    )
+)
+
+;; Public: Update Milestone Progress
+(define-public (update-milestone-progress (user principal) (milestone-id uint) (new-value uint))
+    (let (
+        (milestone-data (unwrap! (map-get? Milestones milestone-id) ERR-USER-NOT-FOUND))
+        (current-progress (default-to 
+            {
+                current-value: u0,
+                completed: false,
+                completed-block: none,
+                reward-claimed: false
+            }
+            (map-get? UserMilestoneProgress { user: user, milestone-id: milestone-id })
+        ))
+    )
+        (asserts! (get active milestone-data) ERR-CONTRACT-PAUSED)
+        (asserts! (not (get completed current-progress)) (ok true)) ;; Already completed
+        
+        ;; Check prerequisites
+        (match (get prerequisite milestone-data)
+            prereq-id 
+                (let ((prereq-progress (map-get? UserMilestoneProgress { user: user, milestone-id: prereq-id })))
+                    (asserts! (and (is-some prereq-progress) (get completed (unwrap-panic prereq-progress))) ERR-NOT-AUTHORIZED)
+                )
+            true
+        )
+        
+        (let (
+            (updated-value (max (get current-value current-progress) new-value))
+            (is-completed (>= updated-value (get target-value milestone-data)))
+        )
+            (map-set UserMilestoneProgress { user: user, milestone-id: milestone-id }
+                {
+                    current-value: updated-value,
+                    completed: is-completed,
+                    completed-block: (if is-completed (some burn-block-height) none),
+                    reward-claimed: false
+                }
+            )
+            
+            (if is-completed
+                (print { event: "milestone-completed", user: user, milestone-id: milestone-id })
+                (print { event: "milestone-progress", user: user, milestone-id: milestone-id, progress: updated-value })
+            )
+            (ok is-completed)
+        )
+    )
+)
+
+;; Public: Claim Milestone Reward
+(define-public (claim-milestone-reward (milestone-id uint))
+    (let (
+        (milestone-data (unwrap! (map-get? Milestones milestone-id) ERR-USER-NOT-FOUND))
+        (progress-data (unwrap! (map-get? UserMilestoneProgress { user: tx-sender, milestone-id: milestone-id }) ERR-USER-NOT-FOUND))
+    )
+        (asserts! (get completed progress-data) ERR-NOT-AUTHORIZED)
+        (asserts! (not (get reward-claimed progress-data)) ERR-COOLDOWN-ACTIVE)
+        
+        ;; Mark reward as claimed
+        (map-set UserMilestoneProgress { user: tx-sender, milestone-id: milestone-id }
+            (merge progress-data { reward-claimed: true })
+        )
+        
+        ;; Add to claimable rewards
+        (let ((current-claimable (default-to u0 (map-get? ClaimableRewards tx-sender))))
+            (map-set ClaimableRewards tx-sender (+ current-claimable (get reward-points milestone-data)))
+        )
+        
+        (print { event: "milestone-reward-claimed", user: tx-sender, milestone-id: milestone-id, reward: (get reward-points milestone-data) })
+        (ok (get reward-points milestone-data))
+    )
+)
+
+;; Read-only: Get Milestone Info
+(define-read-only (get-milestone-info (milestone-id uint))
+    (map-get? Milestones milestone-id)
+)
+
+;; Read-only: Get User Milestone Progress
+(define-read-only (get-user-milestone-progress (user principal) (milestone-id uint))
+    (map-get? UserMilestoneProgress { user: user, milestone-id: milestone-id })
+)
+
+;; Read-only: Check Milestone Eligibility
+(define-read-only (is-milestone-eligible (user principal) (milestone-id uint))
+    (let ((milestone-data (unwrap! (map-get? Milestones milestone-id) (err ERR-USER-NOT-FOUND))))
+        (match (get prerequisite milestone-data)
+            prereq-id 
+                (let ((prereq-progress (map-get? UserMilestoneProgress { user: user, milestone-id: prereq-id })))
+                    (ok (and (is-some prereq-progress) (get completed (unwrap-panic prereq-progress))))
+                )
+            (ok true)
+        )
+    )
+)
+
+;; Private: Auto-update milestones based on user stats
+(define-private (auto-update-milestones (user principal))
+    (let ((user-stats (unwrap! (get-user-stats user) false)))
+        ;; Update points-based milestones
+        (update-milestone-progress user u1 (get total-points user-stats)) ;; Assuming milestone 1 is points-based
+        ;; Update activity-based milestones  
+        (update-milestone-progress user u2 (+ (get contract-impact-points user-stats) (get library-usage-points user-stats))) ;; Assuming milestone 2 is activity-based
+        true
+    )
+)
+;; ============================================================================
+;; DYNAMIC REWARD POOLS
+;; ============================================================================
+
+;; Reward Pool Management
+(define-map RewardPools
+    uint ;; pool-id
+    {
+        name: (string-ascii 30),
+        total-amount: uint,
+        distributed-amount: uint,
+        participation-threshold: uint,
+        distribution-rule: uint, ;; 0=equal, 1=proportional, 2=tiered
+        active: bool,
+        created-block: uint,
+        end-block: uint
+    }
+)
+
+;; Pool Participation Tracking
+(define-map PoolParticipants
+    { pool-id: uint, participant: principal }
+    {
+        contribution-score: uint,
+        reward-earned: uint,
+        claimed: bool
+    }
+)
+
+(define-map PoolStats
+    uint ;; pool-id
+    {
+        total-participants: uint,
+        total-contribution: uint,
+        avg-contribution: uint
+    }
+)
+
+(define-data-var next-pool-id uint u1)
+
+;; Distribution Rule Constants
+(define-constant DISTRIBUTION-EQUAL u0)
+(define-constant DISTRIBUTION-PROPORTIONAL u1)
+(define-constant DISTRIBUTION-TIERED u2)
+
+;; Admin: Create Reward Pool
+(define-public (create-reward-pool
+    (name (string-ascii 30))
+    (total-amount uint)
+    (participation-threshold uint)
+    (distribution-rule uint)
+    (duration-blocks uint))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (> total-amount u0) ERR-INVALID-POINTS)
+        (asserts! (<= distribution-rule u2) ERR-INVALID-POINTS)
+        
+        (let ((pool-id (var-get next-pool-id)))
+            (map-set RewardPools pool-id
+                {
+                    name: name,
+                    total-amount: total-amount,
+                    distributed-amount: u0,
+                    participation-threshold: participation-threshold,
+                    distribution-rule: distribution-rule,
+                    active: true,
+                    created-block: burn-block-height,
+                    end-block: (+ burn-block-height duration-blocks)
+                }
+            )
+            
+            (map-set PoolStats pool-id
+                {
+                    total-participants: u0,
+                    total-contribution: u0,
+                    avg-contribution: u0
+                }
+            )
+            
+            (var-set next-pool-id (+ pool-id u1))
+            (print { event: "reward-pool-created", pool-id: pool-id, name: name, amount: total-amount })
+            (ok pool-id)
+        )
+    )
+)
+
+;; Public: Participate in Pool
+(define-public (participate-in-pool (pool-id uint) (contribution-score uint))
+    (let (
+        (pool-data (unwrap! (map-get? RewardPools pool-id) ERR-USER-NOT-FOUND))
+        (pool-stats (unwrap! (map-get? PoolStats pool-id) ERR-USER-NOT-FOUND))
+        (existing-participation (map-get? PoolParticipants { pool-id: pool-id, participant: tx-sender }))
+    )
+        (asserts! (get active pool-data) ERR-CONTRACT-PAUSED)
+        (asserts! (<= burn-block-height (get end-block pool-data)) ERR-COOLDOWN-ACTIVE)
+        (asserts! (>= contribution-score (get participation-threshold pool-data)) ERR-INVALID-POINTS)
+        
+        (match existing-participation
+            existing-data
+                ;; Update existing participation
+                (map-set PoolParticipants { pool-id: pool-id, participant: tx-sender }
+                    (merge existing-data { contribution-score: (+ (get contribution-score existing-data) contribution-score) })
+                )
+            ;; New participation
+            (begin
+                (map-set PoolParticipants { pool-id: pool-id, participant: tx-sender }
+                    {
+                        contribution-score: contribution-score,
+                        reward-earned: u0,
+                        claimed: false
+                    }
+                )
+                ;; Update pool stats
+                (map-set PoolStats pool-id
+                    (merge pool-stats { total-participants: (+ (get total-participants pool-stats) u1) })
+                )
+            )
+        )
+        
+        ;; Update total contribution
+        (let ((new-total-contribution (+ (get total-contribution pool-stats) contribution-score)))
+            (map-set PoolStats pool-id
+                (merge pool-stats { 
+                    total-contribution: new-total-contribution,
+                    avg-contribution: (/ new-total-contribution (get total-participants pool-stats))
+                })
+            )
+        )
+        
+        (print { event: "pool-participation", pool-id: pool-id, participant: tx-sender, contribution: contribution-score })
+        (ok true)
+    )
+)
+
+;; Admin: Distribute Pool Rewards
+(define-public (distribute-pool-rewards (pool-id uint))
+    (let (
+        (pool-data (unwrap! (map-get? RewardPools pool-id) ERR-USER-NOT-FOUND))
+        (pool-stats (unwrap! (map-get? PoolStats pool-id) ERR-USER-NOT-FOUND))
+    )
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (get active pool-data) ERR-CONTRACT-PAUSED)
+        (asserts! (> burn-block-height (get end-block pool-data)) ERR-COOLDOWN-ACTIVE)
+        
+        ;; Mark pool as inactive
+        (map-set RewardPools pool-id (merge pool-data { active: false }))
+        
+        (print { event: "pool-distribution-started", pool-id: pool-id, participants: (get total-participants pool-stats) })
+        (ok true)
+    )
+)
+
+;; Public: Claim Pool Reward
+(define-public (claim-pool-reward (pool-id uint))
+    (let (
+        (pool-data (unwrap! (map-get? RewardPools pool-id) ERR-USER-NOT-FOUND))
+        (participation-data (unwrap! (map-get? PoolParticipants { pool-id: pool-id, participant: tx-sender }) ERR-USER-NOT-FOUND))
+        (pool-stats (unwrap! (map-get? PoolStats pool-id) ERR-USER-NOT-FOUND))
+    )
+        (asserts! (not (get active pool-data)) ERR-CONTRACT-PAUSED) ;; Pool must be closed
+        (asserts! (not (get claimed participation-data)) ERR-COOLDOWN-ACTIVE)
+        
+        ;; Calculate reward based on distribution rule
+        (let (
+            (reward-amount (calculate-pool-reward 
+                pool-id 
+                (get contribution-score participation-data)
+                (get total-contribution pool-stats)
+                (get total-participants pool-stats)
+                (get distribution-rule pool-data)
+                (get total-amount pool-data)
+            ))
+        )
+            ;; Mark as claimed
+            (map-set PoolParticipants { pool-id: pool-id, participant: tx-sender }
+                (merge participation-data { 
+                    reward-earned: reward-amount,
+                    claimed: true 
+                })
+            )
+            
+            ;; Add to claimable rewards
+            (let ((current-claimable (default-to u0 (map-get? ClaimableRewards tx-sender))))
+                (map-set ClaimableRewards tx-sender (+ current-claimable reward-amount))
+            )
+            
+            (print { event: "pool-reward-claimed", pool-id: pool-id, participant: tx-sender, reward: reward-amount })
+            (ok reward-amount)
+        )
+    )
+)
+
+;; Private: Calculate Pool Reward
+(define-private (calculate-pool-reward 
+    (pool-id uint)
+    (user-contribution uint)
+    (total-contribution uint)
+    (total-participants uint)
+    (distribution-rule uint)
+    (total-pool uint))
+    (if (is-eq distribution-rule DISTRIBUTION-EQUAL)
+        ;; Equal distribution
+        (/ total-pool total-participants)
+        (if (is-eq distribution-rule DISTRIBUTION-PROPORTIONAL)
+            ;; Proportional to contribution
+            (/ (* total-pool user-contribution) total-contribution)
+            ;; Tiered distribution (simplified)
+            (let ((contribution-ratio (/ (* user-contribution u100) total-contribution)))
+                (if (> contribution-ratio u50) ;; Top 50% contributors
+                    (/ (* total-pool u60) u100) ;; Get 60% share
+                    (/ (* total-pool u40) u100) ;; Others get 40% share
+                )
+            )
+        )
+    )
+)
+
+;; Read-only: Get Pool Info
+(define-read-only (get-pool-info (pool-id uint))
+    (map-get? RewardPools pool-id)
+)
+
+;; Read-only: Get Pool Participation
+(define-read-only (get-pool-participation (pool-id uint) (participant principal))
+    (map-get? PoolParticipants { pool-id: pool-id, participant: participant })
+)
+
+;; Read-only: Get Pool Stats
+(define-read-only (get-pool-stats (pool-id uint))
+    (map-get? PoolStats pool-id)
+)
+;; ============================================================================
+;; ENHANCED API AND DATA EXPORT
+;; ============================================================================
+
+;; Pagination Support
+(define-map PaginatedQueries
+    { query-type: uint, offset: uint, limit: uint }
+    {
+        results: (list 50 principal),
+        total-count: uint,
+        has-more: bool
+    }
+)
+
+;; Query Type Constants
+(define-constant QUERY-TYPE-LEADERBOARD u0)
+(define-constant QUERY-TYPE-GUILD-MEMBERS u1)
+(define-constant QUERY-TYPE-SEASON-PARTICIPANTS u2)
+
+;; Enhanced Event Emission
+(define-map EventLog
+    uint ;; event-id
+    {
+        event-type: (string-ascii 30),
+        user: (optional principal),
+        data: (string-ascii 200),
+        timestamp: uint
+    }
+)
+
+(define-data-var next-event-id uint u1)
+
+;; Public: Export User Data
+(define-public (export-user-data (user principal))
+    (let (
+        (user-stats (get-user-stats user))
+        (user-tier (unwrap-panic (get-user-tier user)))
+        (user-streak (get-user-streak user))
+        (user-guild (get-user-guild user))
+        (engagement-metrics (get-user-engagement user))
+    )
+        (print {
+            event: "user-data-export",
+            user: user,
+            stats: user-stats,
+            tier: user-tier,
+            streak: user-streak,
+            guild: user-guild,
+            engagement: engagement-metrics,
+            export-timestamp: burn-block-height
+        })
+        (ok true)
+    )
+)
+
+;; Read-only: Get Paginated Leaderboard
+(define-read-only (get-paginated-leaderboard (offset uint) (limit uint))
+    (let (
+        (capped-limit (if (> limit u50) u50 limit))
+        (global-stats (get-global-stats))
+    )
+        (ok {
+            offset: offset,
+            limit: capped-limit,
+            total-users: (get total-users global-stats),
+            has-more: (> (get total-users global-stats) (+ offset capped-limit)),
+            note: "Full leaderboard requires off-chain indexing"
+        })
+    )
+)
+
+;; Read-only: Get User Activity Summary
+(define-read-only (get-user-activity-summary (user principal))
+    (let (
+        (stats (get-user-stats user))
+        (log-count (get-user-log-count user))
+        (cross-contract-count (default-to u0 (map-get? UserCrossContractCount user)))
+        (guild-info (get-user-guild user))
+    )
+        (match stats
+            user-stats (ok {
+                total-points: (get total-points user-stats),
+                contract-points: (get contract-impact-points user-stats),
+                library-points: (get library-usage-points user-stats),
+                github-points: (get github-contrib-points user-stats),
+                reputation: (get reputation-score user-stats),
+                activity-count: log-count,
+                cross-contract-activities: cross-contract-count,
+                guild-membership: guild-info,
+                last-activity: (get last-activity-block user-stats)
+            })
+            (err ERR-USER-NOT-FOUND)
+        )
+    )
+)
+
+;; Read-only: Get System Overview
+(define-read-only (get-system-overview)
+    (let (
+        (global-stats (get-global-stats))
+        (current-season (var-get current-season-id))
+        (total-guilds (var-get next-guild-id))
+        (total-pools (var-get next-pool-id))
+        (total-milestones (var-get next-milestone-id))
+    )
+        (ok {
+            total-users: (get total-users global-stats),
+            total-points-distributed: (get total-points-distributed global-stats),
+            top-score: (get top-score global-stats),
+            current-season: current-season,
+            total-guilds: total-guilds,
+            total-reward-pools: total-pools,
+            total-milestones: total-milestones,
+            contract-paused: (var-get contract-paused),
+            analytics-enabled: (var-get analytics-enabled)
+        })
+    )
+)
+
+;; Public: Log Custom Event
+(define-public (log-custom-event 
+    (event-type (string-ascii 30))
+    (user (optional principal))
+    (data (string-ascii 200)))
+    (let ((event-id (var-get next-event-id)))
+        (map-set EventLog event-id
+            {
+                event-type: event-type,
+                user: user,
+                data: data,
+                timestamp: burn-block-height
+            }
+        )
+        (var-set next-event-id (+ event-id u1))
+        (print { event: "custom-event-logged", event-id: event-id, type: event-type })
+        (ok event-id)
+    )
+)
+
+;; Read-only: Get Event Log Entry
+(define-read-only (get-event-log (event-id uint))
+    (map-get? EventLog event-id)
+)
+
+;; Read-only: Get Comprehensive User Profile
+(define-read-only (get-user-profile (user principal))
+    (let (
+        (basic-stats (get-user-stats user))
+        (tier (unwrap-panic (get-user-tier user)))
+        (level (unwrap-panic (get-user-level user)))
+        (reputation (unwrap-panic (get-user-reputation user)))
+        (streak (get-user-streak user))
+        (guild (get-user-guild user))
+        (engagement (get-user-engagement user))
+        (claimable (unwrap-panic (get-claimable-rewards user)))
+    )
+        (match basic-stats
+            stats (ok {
+                user: user,
+                points: (get total-points stats),
+                tier: tier,
+                level: level,
+                reputation: reputation,
+                streak: (get current-streak streak),
+                guild-id: guild,
+                engagement-score: (match engagement eng (get retention-score eng) u0),
+                claimable-rewards: claimable,
+                last-activity: (get last-activity-block stats)
+            })
+            (err ERR-USER-NOT-FOUND)
+        )
+    )
+)
+
+;; Read-only: Generate Mock Data for Testing
+(define-read-only (generate-mock-leaderboard)
+    (ok {
+        mock-users: (list 
+            "SP1HTBVD3JG9C05J7HBJTHGR0GGW7KXW28M5JS8QE"
+            "SP2JXKMSH007NPYAQHKJPQMAQYAD90NQGTVJVQ02B"
+            "SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9"
+        ),
+        mock-scores: (list u5000 u4500 u4000),
+        note: "Mock data for integration testing"
+    })
+)
+;; ============================================================================
+;; EXPANDED ACHIEVEMENT SYSTEM
+;; ============================================================================
+
+;; Extended Achievement Categories
+(define-constant ACHIEVEMENT-SOCIAL-BUTTERFLY u11) ;; Join guild + refer 5 users
+(define-constant ACHIEVEMENT-SEASON-CHAMPION u12) ;; Win a season
+(define-constant ACHIEVEMENT-MILESTONE-MASTER u13) ;; Complete 10 milestones
+(define-constant ACHIEVEMENT-CROSS-CHAIN-EXPERT u14) ;; Activity on 5+ partner contracts
+(define-constant ACHIEVEMENT-ANALYTICS-GURU u15) ;; High engagement metrics
+(define-constant ACHIEVEMENT-POOL-WINNER u16) ;; Win reward pool distribution
+(define-constant ACHIEVEMENT-STREAK-LEGEND u17) ;; 100+ day streak
+(define-constant ACHIEVEMENT-POINT-MILLIONAIRE u18) ;; 1M+ points
+(define-constant ACHIEVEMENT-GUILD-LEADER u19) ;; Lead successful guild
+(define-constant ACHIEVEMENT-EARLY-ADOPTER u20) ;; First 100 users
+
+;; Achievement Progress Tracking
+(define-map AchievementProgress
+    { user: principal, achievement-id: uint }
+    {
+        current-progress: uint,
+        target-progress: uint,
+        progress-percentage: uint,
+        last-updated: uint
+    }
+)
+
+;; Achievement Categories
+(define-map AchievementCategories
+    uint ;; category-id
+    {
+        name: (string-ascii 30),
+        description: (string-ascii 100),
+        total-achievements: uint
+    }
+)
+
+;; Category Constants
+(define-constant CATEGORY-ENGAGEMENT u1)
+(define-constant CATEGORY-SOCIAL u2)
+(define-constant CATEGORY-COMPETITIVE u3)
+(define-constant CATEGORY-TECHNICAL u4)
+(define-constant CATEGORY-MILESTONE u5)
+
+;; Public: Update Achievement Progress
+(define-public (update-achievement-progress 
+    (user principal)
+    (achievement-id uint)
+    (progress-increment uint))
+    (let (
+        (current-progress (default-to 
+            {
+                current-progress: u0,
+                target-progress: u100,
+                progress-percentage: u0,
+                last-updated: u0
+            }
+            (map-get? AchievementProgress { user: user, achievement-id: achievement-id })
+        ))
+        (new-progress (+ (get current-progress current-progress) progress-increment))
+        (target (get target-progress current-progress))
+        (percentage (/ (* new-progress u100) target))
+    )
+        (map-set AchievementProgress { user: user, achievement-id: achievement-id }
+            {
+                current-progress: new-progress,
+                target-progress: target,
+                progress-percentage: percentage,
+                last-updated: burn-block-height
+            }
+        )
+        
+        ;; Check if achievement should be unlocked
+        (if (>= percentage u100)
+            (unlock-achievement user achievement-id ACHIEVEMENT-REWARD-MEDIUM)
+            false
+        )
+        
+        (ok true)
+    )
+)
+
+;; Public: Check Multiple Achievements
+(define-public (check-comprehensive-achievements (user principal))
+    (let (
+        (stats (unwrap! (get-user-stats user) ERR-USER-NOT-FOUND))
+        (streak (get current-streak (get-user-streak user)))
+        (guild-id (get-user-guild user))
+        (cross-contract-count (default-to u0 (map-get? UserCrossContractCount user)))
+    )
+        ;; Social Butterfly: Guild + Referrals
+        (if (and (is-some guild-id) (>= (len (default-to (list) (map-get? Referrals user))) u5))
+            (unlock-achievement user ACHIEVEMENT-SOCIAL-BUTTERFLY ACHIEVEMENT-REWARD-LARGE)
+            false
+        )
+        
+        ;; Cross-Chain Expert
+        (if (>= cross-contract-count u5)
+            (unlock-achievement user ACHIEVEMENT-CROSS-CHAIN-EXPERT ACHIEVEMENT-REWARD-MEDIUM)
+            false
+        )
+        
+        ;; Streak Legend
+        (if (>= streak u100)
+            (unlock-achievement user ACHIEVEMENT-STREAK-LEGEND ACHIEVEMENT-REWARD-LARGE)
+            false
+        )
+        
+        ;; Point Millionaire
+        (if (>= (get total-points stats) u1000000)
+            (unlock-achievement user ACHIEVEMENT-POINT-MILLIONAIRE ACHIEVEMENT-REWARD-LARGE)
+            false
+        )
+        
+        (ok true)
+    )
+)
+
+;; Admin: Create Achievement Category
+(define-public (create-achievement-category
+    (category-id uint)
+    (name (string-ascii 30))
+    (description (string-ascii 100)))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (map-set AchievementCategories category-id
+            {
+                name: name,
+                description: description,
+                total-achievements: u0
+            }
+        )
+        (print { event: "achievement-category-created", category-id: category-id, name: name })
+        (ok true)
+    )
+)
+
+;; Read-only: Get Achievement Progress
+(define-read-only (get-achievement-progress (user principal) (achievement-id uint))
+    (map-get? AchievementProgress { user: user, achievement-id: achievement-id })
+)
+
+;; Read-only: Get User Achievement Summary
+(define-read-only (get-user-achievement-summary (user principal))
+    (let (
+        (total-unlocked (fold count-achievements 
+            (list ACHIEVEMENT-FIRST-ACTIVITY ACHIEVEMENT-STREAK-WEEK ACHIEVEMENT-STREAK-MONTH 
+                  ACHIEVEMENT-REFERRAL-CHAMPION ACHIEVEMENT-LIBRARY-MASTER ACHIEVEMENT-GITHUB-CONTRIBUTOR
+                  ACHIEVEMENT-TIER-GOLD ACHIEVEMENT-TIER-PLATINUM ACHIEVEMENT-TIER-DIAMOND
+                  ACHIEVEMENT-POINTS-10K ACHIEVEMENT-SOCIAL-BUTTERFLY ACHIEVEMENT-SEASON-CHAMPION)
+            { user: user, count: u0 }
+        ))
+    )
+        (ok {
+            total-achievements: (get count total-unlocked),
+            recent-achievements: (list), ;; Would need additional tracking for recent ones
+            progress-summary: "Achievement system active"
+        })
+    )
+)
+
+;; Private: Count Achievements Helper
+(define-private (count-achievements (achievement-id uint) (acc { user: principal, count: uint }))
+    (if (has-achievement (get user acc) achievement-id)
+        { user: (get user acc), count: (+ (get count acc) u1) }
+        acc
+    )
+)
+
+;; Read-only: Get Achievement Category
+(define-read-only (get-achievement-category (category-id uint))
+    (map-get? AchievementCategories category-id)
+)
+;; ============================================================================
+;; ENHANCED SECURITY AND VALIDATION
+;; ============================================================================
+
+;; Rate Limiting
+(define-map UserRateLimits
+    principal
+    {
+        last-action-block: uint,
+        action-count: uint,
+        cooldown-until: uint
+    }
+)
+
+;; Security Constants
+(define-constant MAX-ACTIONS-PER-PERIOD u10)
+(define-constant RATE-LIMIT-PERIOD u100) ;; blocks
+(define-constant COOLDOWN-PENALTY u500) ;; blocks
+
+;; Input Validation
+(define-private (validate-string-input (input (string-ascii 50)))
+    (and (> (len input) u0) (<= (len input) u50))
+)
+
+;; Rate Limiting Check
+(define-private (check-rate-limit (user principal))
+    (let (
+        (rate-data (default-to 
+            {
+                last-action-block: u0,
+                action-count: u0,
+                cooldown-until: u0
+            }
+            (map-get? UserRateLimits user)
+        ))
+        (current-block burn-block-height)
+    )
+        ;; Check if in cooldown
+        (asserts! (< current-block (get cooldown-until rate-data)) (ok false))
+        
+        ;; Reset counter if period expired
+        (let (
+            (blocks-since-last (- current-block (get last-action-block rate-data)))
+            (reset-counter (> blocks-since-last RATE-LIMIT-PERIOD))
+            (new-count (if reset-counter u1 (+ (get action-count rate-data) u1)))
+        )
+            ;; Check if exceeding rate limit
+            (if (> new-count MAX-ACTIONS-PER-PERIOD)
+                (begin
+                    ;; Apply cooldown penalty
+                    (map-set UserRateLimits user
+                        (merge rate-data { 
+                            cooldown-until: (+ current-block COOLDOWN-PENALTY),
+                            action-count: u0
+                        })
+                    )
+                    (ok false)
+                )
+                (begin
+                    ;; Update rate limit data
+                    (map-set UserRateLimits user
+                        {
+                            last-action-block: current-block,
+                            action-count: new-count,
+                            cooldown-until: (get cooldown-until rate-data)
+                        }
+                    )
+                    (ok true)
+                )
+            )
+        )
+    )
+)
+
+;; Enhanced Input Validation
+(define-private (validate-points-input (points uint))
+    (and (> points u0) (<= points u1000000)) ;; Max 1M points per action
+)
+
+;; Overflow Protection Helper
+(define-private (safe-add (a uint) (b uint))
+    (let ((result (+ a b)))
+        (asserts! (>= result a) ERR-BUFFER-OVERFLOW) ;; Check for overflow
+        (ok result)
+    )
+)
+
+;; Enhanced Authorization Check
+(define-private (enhanced-auth-check (required-role uint))
+    (let ((is-authorized (or (is-admin tx-sender) (is-eq required-role u0))))
+        (asserts! is-authorized ERR-NOT-AUTHORIZED)
+        (ok true)
+    )
+)
+
+;; Public: Secure Activity Logging
+(define-public (secure-log-activity 
+    (user principal)
+    (activity-type (string-ascii 20))
+    (points uint))
+    (begin
+        ;; Rate limiting
+        (asserts! (unwrap! (check-rate-limit tx-sender) ERR-COOLDOWN-ACTIVE) ERR-COOLDOWN-ACTIVE)
+        
+        ;; Input validation
+        (asserts! (validate-string-input activity-type) ERR-INVALID-POINTS)
+        (asserts! (validate-points-input points) ERR-INVALID-POINTS)
+        
+        ;; Contract not paused
+        (asserts! (not (var-get contract-paused)) ERR-CONTRACT-PAUSED)
+        
+        ;; Log the activity
+        (log-contract-activity user (/ points u10))
+    )
+)
+
+;; Admin: Security Audit Log
+(define-public (log-security-event 
+    (event-type (string-ascii 30))
+    (severity uint)
+    (description (string-ascii 100)))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (<= severity u3) ERR-INVALID-POINTS) ;; 0=info, 1=warning, 2=error, 3=critical
+        
+        (print { 
+            event: "security-audit",
+            type: event-type,
+            severity: severity,
+            description: description,
+            admin: tx-sender,
+            timestamp: burn-block-height
+        })
+        (ok true)
+    )
+)
+;; ============================================================================
+;; NOTIFICATION AND ALERT SYSTEM
+;; ============================================================================
+
+;; Notification Types
+(define-constant NOTIFICATION-ACHIEVEMENT u0)
+(define-constant NOTIFICATION-TIER-UPGRADE u1)
+(define-constant NOTIFICATION-SEASON-END u2)
+(define-constant NOTIFICATION-GUILD-INVITE u3)
+(define-constant NOTIFICATION-REWARD-AVAILABLE u4)
+
+;; User Notifications
+(define-map UserNotifications
+    { user: principal, notification-id: uint }
+    {
+        notification-type: uint,
+        title: (string-ascii 50),
+        message: (string-ascii 100),
+        read: bool,
+        created-block: uint,
+        expires-block: uint
+    }
+)
+
+(define-map UserNotificationCount principal uint)
+
+;; System Alerts
+(define-map SystemAlerts
+    uint ;; alert-id
+    {
+        alert-type: uint,
+        message: (string-ascii 100),
+        severity: uint,
+        active: bool,
+        created-block: uint
+    }
+)
+
+(define-data-var next-alert-id uint u1)
+
+;; Public: Create User Notification
+(define-public (create-notification
+    (user principal)
+    (notification-type uint)
+    (title (string-ascii 50))
+    (message (string-ascii 100))
+    (expires-in-blocks uint))
+    (let (
+        (notification-count (default-to u0 (map-get? UserNotificationCount user)))
+        (notification-id notification-count)
+    )
+        (asserts! (<= notification-type u4) ERR-INVALID-POINTS)
+        (asserts! (validate-string-input title) ERR-INVALID-POINTS)
+        
+        (map-set UserNotifications { user: user, notification-id: notification-id }
+            {
+                notification-type: notification-type,
+                title: title,
+                message: message,
+                read: false,
+                created-block: burn-block-height,
+                expires-block: (+ burn-block-height expires-in-blocks)
+            }
+        )
+        
+        (map-set UserNotificationCount user (+ notification-count u1))
+        
+        (print { event: "notification-created", user: user, type: notification-type, title: title })
+        (ok notification-id)
+    )
+)
+
+;; Public: Mark Notification as Read
+(define-public (mark-notification-read (notification-id uint))
+    (let (
+        (notification-data (unwrap! (map-get? UserNotifications { user: tx-sender, notification-id: notification-id }) ERR-USER-NOT-FOUND))
+    )
+        (map-set UserNotifications { user: tx-sender, notification-id: notification-id }
+            (merge notification-data { read: true })
+        )
+        (ok true)
+    )
+)
+
+;; Admin: Create System Alert
+(define-public (create-system-alert
+    (alert-type uint)
+    (message (string-ascii 100))
+    (severity uint))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (<= severity u3) ERR-INVALID-POINTS)
+        
+        (let ((alert-id (var-get next-alert-id)))
+            (map-set SystemAlerts alert-id
+                {
+                    alert-type: alert-type,
+                    message: message,
+                    severity: severity,
+                    active: true,
+                    created-block: burn-block-height
+                }
+            )
+            (var-set next-alert-id (+ alert-id u1))
+            
+            (print { event: "system-alert-created", alert-id: alert-id, severity: severity })
+            (ok alert-id)
+        )
+    )
+)
+
+;; Read-only: Get User Notifications
+(define-read-only (get-user-notifications (user principal) (limit uint))
+    (let ((notification-count (default-to u0 (map-get? UserNotificationCount user))))
+        (ok {
+            total-notifications: notification-count,
+            unread-count: u0, ;; Would need additional tracking
+            has-more: (> notification-count limit)
+        })
+    )
+)
+
+;; Read-only: Get System Alerts
+(define-read-only (get-active-system-alerts)
+    (ok {
+        total-alerts: (var-get next-alert-id),
+        note: "Active alerts require iteration"
+    })
+)
+;; ============================================================================
+;; ADVANCED LEADERBOARD FEATURES
+;; ============================================================================
+
+;; Leaderboard Categories
+(define-map CategoryLeaderboards
+    { category: uint, rank: uint }
+    { user: principal, score: uint }
+)
+
+;; Category Constants
+(define-constant LEADERBOARD-OVERALL u0)
+(define-constant LEADERBOARD-WEEKLY u1)
+(define-constant LEADERBOARD-MONTHLY u2)
+(define-constant LEADERBOARD-SEASONAL u3)
+(define-constant LEADERBOARD-GUILD u4)
+
+;; Leaderboard Metadata
+(define-map LeaderboardMeta
+    uint ;; category
+    {
+        name: (string-ascii 30),
+        description: (string-ascii 100),
+        last-updated: uint,
+        total-entries: uint
+    }
+)
+
+;; User Rankings History
+(define-map UserRankingHistory
+    { user: principal, period: uint }
+    {
+        rank: uint,
+        score: uint,
+        category: uint,
+        recorded-block: uint
+    }
+)
+
+;; Admin: Update Category Leaderboard
+(define-public (update-category-leaderboard
+    (category uint)
+    (rankings (list 10 { user: principal, score: uint })))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (<= category u4) ERR-INVALID-POINTS)
+        
+        ;; Update leaderboard entries
+        (map update-leaderboard-entry rankings)
+        
+        ;; Update metadata
+        (map-set LeaderboardMeta category
+            {
+                name: "Category Leaderboard",
+                description: "Updated leaderboard rankings",
+                last-updated: burn-block-height,
+                total-entries: (len rankings)
+            }
+        )
+        
+        (print { event: "leaderboard-updated", category: category, entries: (len rankings) })
+        (ok true)
+    )
+)
+
+;; Private: Update Leaderboard Entry Helper
+(define-private (update-leaderboard-entry (entry { user: principal, score: uint }))
+    (let ((rank u1)) ;; Simplified ranking
+        (map-set CategoryLeaderboards { category: LEADERBOARD-OVERALL, rank: rank }
+            { user: (get user entry), score: (get score entry) }
+        )
+        true
+    )
+)
+
+;; Public: Record User Ranking
+(define-public (record-user-ranking
+    (user principal)
+    (rank uint)
+    (score uint)
+    (category uint)
+    (period uint))
+    (begin
+        (map-set UserRankingHistory { user: user, period: period }
+            {
+                rank: rank,
+                score: score,
+                category: category,
+                recorded-block: burn-block-height
+            }
+        )
+        (ok true)
+    )
+)
+
+;; Read-only: Get Category Leaderboard
+(define-read-only (get-category-leaderboard (category uint) (limit uint))
+    (let ((meta (map-get? LeaderboardMeta category)))
+        (ok {
+            category: category,
+            metadata: meta,
+            note: "Full rankings require off-chain processing"
+        })
+    )
+)
+
+;; Read-only: Get User Ranking History
+(define-read-only (get-user-ranking-history (user principal) (period uint))
+    (map-get? UserRankingHistory { user: user, period: period })
+)
+
+;; Read-only: Calculate Rank Change
+(define-read-only (calculate-rank-change (user principal) (current-period uint) (previous-period uint))
+    (let (
+        (current-rank (map-get? UserRankingHistory { user: user, period: current-period }))
+        (previous-rank (map-get? UserRankingHistory { user: user, period: previous-period }))
+    )
+        (match current-rank
+            current-data
+                (match previous-rank
+                    previous-data
+                        (ok (- (get rank previous-data) (get rank current-data))) ;; Positive = improvement
+                    (ok 0) ;; No previous data
+                )
+            (err ERR-USER-NOT-FOUND)
+        )
+    )
+)
+;; ============================================================================
+;; REPUTATION AND TRUST SYSTEM
+;; ============================================================================
+
+;; Trust Scores
+(define-map UserTrustScores
+    principal
+    {
+        trust-score: uint,
+        verification-level: uint,
+        endorsements: uint,
+        reports: uint,
+        last-updated: uint
+    }
+)
+
+;; Endorsements
+(define-map UserEndorsements
+    { endorser: principal, endorsed: principal }
+    {
+        endorsement-type: uint,
+        message: (string-ascii 50),
+        timestamp: uint,
+        weight: uint
+    }
+)
+
+;; Trust Level Constants
+(define-constant TRUST-LEVEL-UNVERIFIED u0)
+(define-constant TRUST-LEVEL-BASIC u1)
+(define-constant TRUST-LEVEL-VERIFIED u2)
+(define-constant TRUST-LEVEL-TRUSTED u3)
+(define-constant TRUST-LEVEL-EXPERT u4)
+
+;; Endorsement Types
+(define-constant ENDORSEMENT-HELPFUL u0)
+(define-constant ENDORSEMENT-SKILLED u1)
+(define-constant ENDORSEMENT-TRUSTWORTHY u2)
+(define-constant ENDORSEMENT-LEADER u3)
+
+;; Public: Endorse User
+(define-public (endorse-user
+    (endorsed principal)
+    (endorsement-type uint)
+    (message (string-ascii 50)))
+    (begin
+        (asserts! (not (is-eq tx-sender endorsed)) ERR-INVALID-POINTS)
+        (asserts! (<= endorsement-type u3) ERR-INVALID-POINTS)
+        (asserts! (validate-string-input message) ERR-INVALID-POINTS)
+        
+        ;; Check if already endorsed
+        (asserts! (is-none (map-get? UserEndorsements { endorser: tx-sender, endorsed: endorsed })) ERR-COOLDOWN-ACTIVE)
+        
+        (let (
+            (endorser-stats (unwrap! (get-user-stats tx-sender) ERR-USER-NOT-FOUND))
+            (endorsement-weight (calculate-endorsement-weight (get total-points endorser-stats)))
+        )
+            ;; Record endorsement
+            (map-set UserEndorsements { endorser: tx-sender, endorsed: endorsed }
+                {
+                    endorsement-type: endorsement-type,
+                    message: message,
+                    timestamp: burn-block-height,
+                    weight: endorsement-weight
+                }
+            )
+            
+            ;; Update endorsed user's trust score
+            (update-trust-score endorsed endorsement-weight)
+            
+            (print { event: "user-endorsed", endorser: tx-sender, endorsed: endorsed, type: endorsement-type })
+            (ok true)
+        )
+    )
+)
+
+;; Private: Calculate Endorsement Weight
+(define-private (calculate-endorsement-weight (endorser-points uint))
+    (if (> endorser-points u100000) u5      ;; High-value users have more weight
+        (if (> endorser-points u10000) u3   ;; Medium-value users
+            (if (> endorser-points u1000) u2 ;; Low-value users
+                u1                          ;; New users
+            )
+        )
+    )
+)
+
+;; Private: Update Trust Score
+(define-private (update-trust-score (user principal) (weight uint))
+    (let (
+        (current-trust (default-to 
+            {
+                trust-score: u100,
+                verification-level: TRUST-LEVEL-UNVERIFIED,
+                endorsements: u0,
+                reports: u0,
+                last-updated: u0
+            }
+            (map-get? UserTrustScores user)
+        ))
+        (new-endorsements (+ (get endorsements current-trust) u1))
+        (new-trust-score (+ (get trust-score current-trust) (* weight u10)))
+        (new-verification-level (calculate-verification-level new-trust-score new-endorsements))
+    )
+        (map-set UserTrustScores user
+            {
+                trust-score: new-trust-score,
+                verification-level: new-verification-level,
+                endorsements: new-endorsements,
+                reports: (get reports current-trust),
+                last-updated: burn-block-height
+            }
+        )
+        true
+    )
+)
+
+;; Private: Calculate Verification Level
+(define-private (calculate-verification-level (trust-score uint) (endorsements uint))
+    (if (and (> trust-score u1000) (> endorsements u20)) TRUST-LEVEL-EXPERT
+        (if (and (> trust-score u500) (> endorsements u10)) TRUST-LEVEL-TRUSTED
+            (if (and (> trust-score u200) (> endorsements u5)) TRUST-LEVEL-VERIFIED
+                (if (> trust-score u100) TRUST-LEVEL-BASIC
+                    TRUST-LEVEL-UNVERIFIED
+                )
+            )
+        )
+    )
+)
+
+;; Public: Report User (for negative behavior)
+(define-public (report-user (reported principal) (reason (string-ascii 50)))
+    (begin
+        (asserts! (not (is-eq tx-sender reported)) ERR-INVALID-POINTS)
+        (asserts! (validate-string-input reason) ERR-INVALID-POINTS)
+        
+        (let (
+            (current-trust (default-to 
+                {
+                    trust-score: u100,
+                    verification-level: TRUST-LEVEL-UNVERIFIED,
+                    endorsements: u0,
+                    reports: u0,
+                    last-updated: u0
+                }
+                (map-get? UserTrustScores reported)
+            ))
+            (new-reports (+ (get reports current-trust) u1))
+            (penalty (if (> new-reports u5) u50 u10)) ;; Escalating penalties
+            (new-trust-score (if (> (get trust-score current-trust) penalty) 
+                                (- (get trust-score current-trust) penalty) 
+                                u0))
+        )
+            (map-set UserTrustScores reported
+                (merge current-trust {
+                    trust-score: new-trust-score,
+                    reports: new-reports,
+                    last-updated: burn-block-height
+                })
+            )
+            
+            (print { event: "user-reported", reporter: tx-sender, reported: reported, reason: reason })
+            (ok true)
+        )
+    )
+)
+
+;; Read-only: Get Trust Score
+(define-read-only (get-trust-score (user principal))
+    (map-get? UserTrustScores user)
+)
+
+;; Read-only: Get Endorsement
+(define-read-only (get-endorsement (endorser principal) (endorsed principal))
+    (map-get? UserEndorsements { endorser: endorser, endorsed: endorsed })
+)
+;; ============================================================================
+;; GAMIFICATION ENHANCEMENTS
+;; ============================================================================
+
+;; Daily Challenges
+(define-map DailyChallenges
+    uint ;; challenge-id
+    {
+        name: (string-ascii 50),
+        description: (string-ascii 100),
+        target-value: uint,
+        reward-points: uint,
+        challenge-type: uint,
+        active-date: uint,
+        completion-count: uint
+    }
+)
+
+;; User Challenge Progress
+(define-map UserChallengeProgress
+    { user: principal, challenge-id: uint }
+    {
+        progress: uint,
+        completed: bool,
+        completed-block: (optional uint)
+    }
+)
+
+;; Combo System
+(define-map UserCombos
+    principal
+    {
+        current-combo: uint,
+        max-combo: uint,
+        combo-type: uint,
+        last-action-block: uint
+    }
+)
+
+(define-data-var next-challenge-id uint u1)
+
+;; Challenge Types
+(define-constant CHALLENGE-DAILY-ACTIVITY u0)
+(define-constant CHALLENGE-SOCIAL-INTERACTION u1)
+(define-constant CHALLENGE-SKILL-DEMONSTRATION u2)
+(define-constant CHALLENGE-COMMUNITY-CONTRIBUTION u3)
+
+;; Combo Types
+(define-constant COMBO-ACTIVITY u0)
+(define-constant COMBO-SOCIAL u1)
+(define-constant COMBO-LEARNING u2)
+
+;; Admin: Create Daily Challenge
+(define-public (create-daily-challenge
+    (name (string-ascii 50))
+    (description (string-ascii 100))
+    (target-value uint)
+    (reward-points uint)
+    (challenge-type uint))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (validate-string-input name) ERR-INVALID-POINTS)
+        (asserts! (> target-value u0) ERR-INVALID-POINTS)
+        (asserts! (<= challenge-type u3) ERR-INVALID-POINTS)
+        
+        (let ((challenge-id (var-get next-challenge-id)))
+            (map-set DailyChallenges challenge-id
+                {
+                    name: name,
+                    description: description,
+                    target-value: target-value,
+                    reward-points: reward-points,
+                    challenge-type: challenge-type,
+                    active-date: (/ burn-block-height BLOCKS-PER-DAY),
+                    completion-count: u0
+                }
+            )
+            (var-set next-challenge-id (+ challenge-id u1))
+            
+            (print { event: "daily-challenge-created", challenge-id: challenge-id, name: name })
+            (ok challenge-id)
+        )
+    )
+)
+
+;; Public: Update Challenge Progress
+(define-public (update-challenge-progress (challenge-id uint) (progress-increment uint))
+    (let (
+        (challenge-data (unwrap! (map-get? DailyChallenges challenge-id) ERR-USER-NOT-FOUND))
+        (current-progress (default-to 
+            {
+                progress: u0,
+                completed: false,
+                completed-block: none
+            }
+            (map-get? UserChallengeProgress { user: tx-sender, challenge-id: challenge-id })
+        ))
+        (new-progress (+ (get progress current-progress) progress-increment))
+        (is-completed (>= new-progress (get target-value challenge-data)))
+    )
+        ;; Check if challenge is for today
+        (asserts! (is-eq (get active-date challenge-data) (/ burn-block-height BLOCKS-PER-DAY)) ERR-COOLDOWN-ACTIVE)
+        (asserts! (not (get completed current-progress)) (ok true))
+        
+        (map-set UserChallengeProgress { user: tx-sender, challenge-id: challenge-id }
+            {
+                progress: new-progress,
+                completed: is-completed,
+                completed-block: (if is-completed (some burn-block-height) none)
+            }
+        )
+        
+        (if is-completed
+            (begin
+                ;; Award challenge reward
+                (let ((current-claimable (default-to u0 (map-get? ClaimableRewards tx-sender))))
+                    (map-set ClaimableRewards tx-sender (+ current-claimable (get reward-points challenge-data)))
+                )
+                ;; Update completion count
+                (map-set DailyChallenges challenge-id
+                    (merge challenge-data { completion-count: (+ (get completion-count challenge-data) u1) })
+                )
+                (print { event: "challenge-completed", user: tx-sender, challenge-id: challenge-id })
+            )
+            (print { event: "challenge-progress", user: tx-sender, challenge-id: challenge-id, progress: new-progress })
+        )
+        
+        (ok is-completed)
+    )
+)
+
+;; Public: Update Combo
+(define-public (update-combo (combo-type uint))
+    (let (
+        (current-combo (default-to 
+            {
+                current-combo: u0,
+                max-combo: u0,
+                combo-type: combo-type,
+                last-action-block: u0
+            }
+            (map-get? UserCombos tx-sender)
+        ))
+        (blocks-since-last (- burn-block-height (get last-action-block current-combo)))
+        (combo-broken (> blocks-since-last BLOCKS-PER-DAY))
+        (new-combo (if combo-broken u1 (+ (get current-combo current-combo) u1)))
+        (new-max (max new-combo (get max-combo current-combo)))
+    )
+        (map-set UserCombos tx-sender
+            {
+                current-combo: new-combo,
+                max-combo: new-max,
+                combo-type: combo-type,
+                last-action-block: burn-block-height
+            }
+        )
+        
+        ;; Bonus points for high combos
+        (if (and (> new-combo u5) (is-eq (mod new-combo u5) u0))
+            (let ((bonus-points (* new-combo u10)))
+                (let ((current-claimable (default-to u0 (map-get? ClaimableRewards tx-sender))))
+                    (map-set ClaimableRewards tx-sender (+ current-claimable bonus-points))
+                )
+                (print { event: "combo-bonus", user: tx-sender, combo: new-combo, bonus: bonus-points })
+            )
+            false
+        )
+        
+        (ok new-combo)
+    )
+)
+
+;; Read-only: Get Daily Challenge
+(define-read-only (get-daily-challenge (challenge-id uint))
+    (map-get? DailyChallenges challenge-id)
+)
+
+;; Read-only: Get User Challenge Progress
+(define-read-only (get-user-challenge-progress (user principal) (challenge-id uint))
+    (map-get? UserChallengeProgress { user: user, challenge-id: challenge-id })
+)
+
+;; Read-only: Get User Combo
+(define-read-only (get-user-combo (user principal))
+    (map-get? UserCombos user)
+)
+
+;; Read-only: Get Today's Challenges
+(define-read-only (get-todays-challenges)
+    (let ((today (/ burn-block-height BLOCKS-PER-DAY)))
+        (ok {
+            date: today,
+            total-challenges: (var-get next-challenge-id),
+            note: "Challenge details require individual queries"
+        })
+    )
+)
+;; ============================================================================
+;; INTEGRATION HELPERS AND UTILITIES
+;; ============================================================================
+
+;; Integration Status
+(define-map IntegrationStatus
+    (string-ascii 30) ;; integration-name
+    {
+        active: bool,
+        version: (string-ascii 10),
+        last-sync: uint,
+        total-syncs: uint,
+        error-count: uint
+    }
+)
+
+;; Batch Operations Support
+(define-map BatchOperations
+    uint ;; batch-id
+    {
+        operation-type: uint,
+        total-operations: uint,
+        completed-operations: uint,
+        started-block: uint,
+        status: uint ;; 0=pending, 1=processing, 2=completed, 3=failed
+    }
+)
+
+(define-data-var next-batch-id uint u1)
+
+;; Utility Functions
+(define-read-only (get-contract-version)
+    (ok {
+        version: "2.0.0",
+        features: (list "seasons" "guilds" "cross-contract" "analytics" "milestones" "pools" "api" "achievements" "security" "notifications" "leaderboards" "trust" "gamification"),
+        last-updated: burn-block-height
+    })
+)
+
+;; Public: Sync Integration Status
+(define-public (sync-integration-status 
+    (integration-name (string-ascii 30))
+    (version (string-ascii 10))
+    (success bool))
+    (let (
+        (current-status (default-to 
+            {
+                active: false,
+                version: "0.0.0",
+                last-sync: u0,
+                total-syncs: u0,
+                error-count: u0
+            }
+            (map-get? IntegrationStatus integration-name)
+        ))
+        (new-syncs (+ (get total-syncs current-status) u1))
+        (new-errors (if success (get error-count current-status) (+ (get error-count current-status) u1)))
+    )
+        (map-set IntegrationStatus integration-name
+            {
+                active: success,
+                version: version,
+                last-sync: burn-block-height,
+                total-syncs: new-syncs,
+                error-count: new-errors
+            }
+        )
+        
+        (print { event: "integration-sync", name: integration-name, success: success, version: version })
+        (ok true)
+    )
+)
+
+;; Admin: Start Batch Operation
+(define-public (start-batch-operation (operation-type uint) (total-operations uint))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (> total-operations u0) ERR-INVALID-POINTS)
+        
+        (let ((batch-id (var-get next-batch-id)))
+            (map-set BatchOperations batch-id
+                {
+                    operation-type: operation-type,
+                    total-operations: total-operations,
+                    completed-operations: u0,
+                    started-block: burn-block-height,
+                    status: u1 ;; processing
+                }
+            )
+            (var-set next-batch-id (+ batch-id u1))
+            
+            (print { event: "batch-operation-started", batch-id: batch-id, type: operation-type })
+            (ok batch-id)
+        )
+    )
+)
+
+;; Read-only: Get Integration Status
+(define-read-only (get-integration-status (integration-name (string-ascii 30)))
+    (map-get? IntegrationStatus integration-name)
+)
+
+;; Read-only: Health Check
+(define-read-only (health-check)
+    (let (
+        (global-stats (get-global-stats))
+        (current-season (var-get current-season-id))
+        (total-guilds (- (var-get next-guild-id) u1))
+        (total-events (var-get next-event-id))
+    )
+        (ok {
+            status: "healthy",
+            total-users: (get total-users global-stats),
+            total-points: (get total-points-distributed global-stats),
+            active-season: current-season,
+            total-guilds: total-guilds,
+            total-events: total-events,
+            contract-paused: (var-get contract-paused),
+            timestamp: burn-block-height
+        })
+    )
+)
+
+;; Read-only: Get Feature Status
+(define-read-only (get-feature-status)
+    (ok {
+        seasonal-competitions: true,
+        guild-system: true,
+        cross-contract-integration: true,
+        advanced-analytics: (var-get analytics-enabled),
+        milestone-tracking: true,
+        dynamic-reward-pools: true,
+        enhanced-achievements: true,
+        security-features: true,
+        notification-system: true,
+        advanced-leaderboards: true,
+        reputation-system: true,
+        gamification: true
+    })
+)
+
+;; Emergency Functions
+(define-public (emergency-data-export)
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (print {
+            event: "emergency-export",
+            global-stats: (get-global-stats),
+            current-season: (var-get current-season-id),
+            total-guilds: (var-get next-guild-id),
+            total-pools: (var-get next-pool-id),
+            total-milestones: (var-get next-milestone-id),
+            export-block: burn-block-height
+        })
+        (ok true)
     )
 )
