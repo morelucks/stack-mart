@@ -919,3 +919,157 @@
         (ok (var-set global-multiplier-cap new-cap))
     )
 )
+;; ============================================================================
+;; SEASONAL COMPETITION SYSTEM
+;; ============================================================================
+
+;; Season Management
+(define-map Seasons 
+    uint ;; season-id
+    {
+        name: (string-ascii 50),
+        start-block: uint,
+        end-block: uint,
+        reward-pool: uint,
+        active: bool,
+        theme-multiplier: uint
+    }
+)
+
+(define-map SeasonalPoints 
+    { user: principal, season-id: uint }
+    uint
+)
+
+(define-map SeasonalRankings
+    { season-id: uint, rank: uint }
+    { user: principal, points: uint }
+)
+
+(define-map SeasonRewards
+    { user: principal, season-id: uint }
+    { amount: uint, claimed: bool }
+)
+
+(define-data-var current-season-id uint u0)
+(define-data-var next-season-id uint u1)
+
+;; Admin: Create New Season
+(define-public (create-season 
+    (name (string-ascii 50))
+    (duration-blocks uint)
+    (reward-pool uint)
+    (theme-multiplier uint))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (> duration-blocks u0) ERR-INVALID-POINTS)
+        (asserts! (> reward-pool u0) ERR-INVALID-POINTS)
+        (asserts! (> theme-multiplier u0) ERR-INVALID-POINTS)
+        
+        (let ((season-id (var-get next-season-id)))
+            (map-set Seasons season-id
+                {
+                    name: name,
+                    start-block: burn-block-height,
+                    end-block: (+ burn-block-height duration-blocks),
+                    reward-pool: reward-pool,
+                    active: true,
+                    theme-multiplier: theme-multiplier
+                }
+            )
+            (var-set next-season-id (+ season-id u1))
+            (var-set current-season-id season-id)
+            (print { event: "season-created", season-id: season-id, name: name })
+            (ok season-id)
+        )
+    )
+)
+
+;; Public: Log Seasonal Activity
+(define-public (log-seasonal-activity (user principal) (points uint))
+    (let (
+        (season-id (var-get current-season-id))
+        (season-data (unwrap! (map-get? Seasons season-id) ERR-INVALID-POINTS))
+    )
+        (asserts! (get active season-data) ERR-CONTRACT-PAUSED)
+        (asserts! (<= burn-block-height (get end-block season-data)) ERR-COOLDOWN-ACTIVE)
+        
+        (let (
+            (current-seasonal (default-to u0 (map-get? SeasonalPoints { user: user, season-id: season-id })))
+            (theme-mult (get theme-multiplier season-data))
+            (adjusted-points (/ (* points theme-mult) u100))
+        )
+            (map-set SeasonalPoints 
+                { user: user, season-id: season-id }
+                (+ current-seasonal adjusted-points)
+            )
+            (print { event: "seasonal-activity", user: user, season-id: season-id, points: adjusted-points })
+            (ok true)
+        )
+    )
+)
+
+;; Read-only: Get Seasonal Points
+(define-read-only (get-seasonal-points (user principal) (season-id uint))
+    (default-to u0 (map-get? SeasonalPoints { user: user, season-id: season-id }))
+)
+
+;; Read-only: Get Season Info
+(define-read-only (get-season-info (season-id uint))
+    (map-get? Seasons season-id)
+)
+
+;; Admin: End Season and Distribute Rewards
+(define-public (end-season (season-id uint) (top-users (list 10 principal)) (rewards (list 10 uint)))
+    (begin
+        (asserts! (is-admin tx-sender) ERR-NOT-AUTHORIZED)
+        (asserts! (is-eq (len top-users) (len rewards)) ERR-INVALID-POINTS)
+        
+        (let ((season-data (unwrap! (map-get? Seasons season-id) ERR-INVALID-POINTS)))
+            (asserts! (get active season-data) ERR-CONTRACT-PAUSED)
+            
+            ;; Mark season as inactive
+            (map-set Seasons season-id (merge season-data { active: false }))
+            
+            ;; Set up rewards for top users
+            (map distribute-season-rewards top-users rewards)
+            
+            (print { event: "season-ended", season-id: season-id })
+            (ok true)
+        )
+    )
+)
+
+;; Private: Distribute Season Rewards Helper
+(define-private (distribute-season-rewards (user principal) (reward uint))
+    (let ((season-id (var-get current-season-id)))
+        (map-set SeasonRewards
+            { user: user, season-id: season-id }
+            { amount: reward, claimed: false }
+        )
+        true
+    )
+)
+
+;; Public: Claim Season Rewards
+(define-public (claim-season-rewards (season-id uint))
+    (let (
+        (reward-data (unwrap! (map-get? SeasonRewards { user: tx-sender, season-id: season-id }) ERR-USER-NOT-FOUND))
+    )
+        (asserts! (not (get claimed reward-data)) ERR-COOLDOWN-ACTIVE)
+        
+        ;; Mark as claimed
+        (map-set SeasonRewards 
+            { user: tx-sender, season-id: season-id }
+            (merge reward-data { claimed: true })
+        )
+        
+        ;; Add to claimable rewards
+        (let ((current-claimable (default-to u0 (map-get? ClaimableRewards tx-sender))))
+            (map-set ClaimableRewards tx-sender (+ current-claimable (get amount reward-data)))
+        )
+        
+        (print { event: "season-rewards-claimed", user: tx-sender, season-id: season-id, amount: (get amount reward-data) })
+        (ok (get amount reward-data))
+    )
+)
