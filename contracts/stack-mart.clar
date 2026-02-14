@@ -459,6 +459,7 @@
       (var-set next-auction-id (+ id u1))
       (ok id))))
 
+
 (define-public (place-bid (auction-id uint) (amount uint))
   (match (map-get? auctions { id: auction-id })
     auction
@@ -474,8 +475,8 @@
           (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
           
           ;; Refund previous bidder
-          (match current-bidder
-            prev-bidder (try! (as-contract (stx-transfer? current-bid tx-sender prev-bidder)))
+          (if (is-some current-bidder)
+            (try! (as-contract (stx-transfer? current-bid tx-sender (unwrap-panic current-bidder))))
             true)
             
           (map-set auctions
