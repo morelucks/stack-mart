@@ -9,17 +9,14 @@ cache_dir = "./.cache"
 path = "contracts/stack-mart.clar"
 epoch = "latest"
 
-[contracts.mock-nft]
-path = "contracts/mock-nft.clar"
-epoch = "latest"
+# Deploy later to reduce initial cost
+# [contracts.rewards-leaderboard]
+# path = "contracts/rewards-leaderboard.clar"
+# epoch = "latest"
 
-[contracts.rewards-leaderboard]
-path = "contracts/rewards-leaderboard.clar"
-epoch = "latest"
-
-[contracts.sp-010]
-path = "contracts/sp-010.clar"
-epoch = "latest"
+# [contracts.sp-010]
+# path = "contracts/sp-010.clar"
+# epoch = "latest"
 
 [repl.analysis]
 passes = ["check_checker"]
