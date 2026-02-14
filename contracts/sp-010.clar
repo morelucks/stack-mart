@@ -57,11 +57,6 @@
     (asserts! (>= result a) ERR-ARITHMETIC-OVERFLOW)
     (ok result)))
 
-;; Safe subtraction with underflow protection  
-(define-private (safe-sub (a uint) (b uint))
-  (asserts! (>= a b) ERR-ARITHMETIC-UNDERFLOW)
-  (ok (- a b)))
-
 ;; ============================================================================
 ;; INPUT VALIDATION FUNCTIONS
 ;; ============================================================================
@@ -84,11 +79,6 @@
     (asserts! (is-standard who) ERR-INVALID-PRINCIPAL)
     (ok true)))
 
-;; Validate principal is not contract address (additional security)
-(define-private (validate-principal-not-contract (who principal))
-  (asserts! (not (is-eq who (as-contract tx-sender))) ERR-INVALID-PRINCIPAL)
-  (ok true))
-
 ;; ============================================================================
 ;; EVENT EMISSION FUNCTIONS
 ;; ============================================================================
@@ -97,7 +87,7 @@
 (define-private (emit-transfer-event (amount uint) (sender principal) (recipient principal))
   (print {
     type: "ft_transfer_event",
-    token-contract: (as-contract tx-sender),
+    token-contract: CONTRACT-NAME,
     amount: amount,
     sender: sender,
     recipient: recipient
@@ -107,7 +97,7 @@
 (define-private (emit-mint-event (amount uint) (recipient principal))
   (print {
     type: "ft_mint_event",
-    token-contract: (as-contract tx-sender),
+    token-contract: CONTRACT-NAME,
     amount: amount,
     recipient: recipient
   }))
@@ -129,11 +119,8 @@
     ;; Update sender balance (delete if zero to save storage)
     (if (is-eq new-sender-balance u0)
       (map-delete balances sender)
-      (map-set balances sender new-sender-balance))
-    ;; Update recipient balance (use safe-add for overflow protection)
-    (match (safe-add recipient-balance amount)
-      success (begin (map-set balances recipient success) (ok true))
-      error error)))
+      (map-set balances recipient (unwrap! (safe-add recipient-balance amount) ERR-ARITHMETIC-OVERFLOW)))
+    (ok true)))
 
 ;; ============================================================================
 ;; MINTING FUNCTIONS
@@ -144,19 +131,15 @@
   (let ((recipient-balance (default-to u0 (map-get? balances recipient)))
         (current-supply (var-get total-supply)))
     ;; Use safe arithmetic for overflow protection
-    (match (safe-add recipient-balance amount)
-      new-recipient-balance 
-        (match (safe-add current-supply amount)
-          new-supply (begin
-            ;; Update recipient balance
-            (map-set balances recipient new-recipient-balance)
-            ;; Update total supply
-            (var-set total-supply new-supply)
-            ;; Emit mint event
-            (emit-mint-event amount recipient)
-            (ok true))
-          error error)
-      error error)))
+    (let ((new-recipient-balance (unwrap! (safe-add recipient-balance amount) ERR-ARITHMETIC-OVERFLOW))
+          (new-supply (unwrap! (safe-add current-supply amount) ERR-ARITHMETIC-OVERFLOW)))
+      ;; Update recipient balance
+      (map-set balances recipient new-recipient-balance)
+      ;; Update total supply
+      (var-set total-supply new-supply)
+      ;; Emit mint event
+      (emit-mint-event amount recipient)
+      (ok true))))
 
 ;; ============================================================================
 ;; SIP-010 PUBLIC INTERFACE
