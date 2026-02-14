@@ -153,7 +153,7 @@
         (unwrap! (log-seasonal-activity user total-new-points) (ok true))
         (unwrap! (check-comprehensive-achievements user) (ok true))
         (unwrap! (update-combo COMBO-ACTIVITY) (ok true))
-        (unwrap! (auto-update-milestones user) (ok true))
+        (auto-update-milestones user)
         
         (ok true)
     )
@@ -1654,7 +1654,7 @@
         )
         
         (let (
-            (updated-value (max (get current-value current-progress) new-value))
+            (updated-value (if (> (get current-value current-progress) new-value) (get current-value current-progress) new-value))
             (is-completed (>= updated-value (get target-value milestone-data)))
         )
             (map-set UserMilestoneProgress { user: user, milestone-id: milestone-id }
@@ -1726,10 +1726,12 @@
 (define-private (auto-update-milestones (user principal))
     (let ((user-stats (unwrap! (get-user-stats user) false)))
         ;; Update points-based milestones
-        (update-milestone-progress user u1 (get total-points user-stats)) ;; Assuming milestone 1 is points-based
-        ;; Update activity-based milestones  
-        (update-milestone-progress user u2 (+ (get contract-impact-points user-stats) (get library-usage-points user-stats))) ;; Assuming milestone 2 is activity-based
-        true
+        (let ((result1 (update-milestone-progress user u1 (get total-points user-stats))))
+            ;; Update activity-based milestones  
+            (let ((result2 (update-milestone-progress user u2 (+ (get contract-impact-points user-stats) (get library-usage-points user-stats)))))
+                true
+            )
+        )
     )
 )
 ;; ============================================================================
@@ -1992,8 +1994,6 @@
         timestamp: uint
     }
 )
-
-(define-data-var next-event-id uint u1)
 
 ;; Public: Export User Data
 (define-public (export-user-data (user principal))
@@ -3037,7 +3037,7 @@
         (blocks-since-last (- burn-block-height (get last-action-block current-combo)))
         (combo-broken (> blocks-since-last BLOCKS-PER-DAY))
         (new-combo (if combo-broken u1 (+ (get current-combo current-combo) u1)))
-        (new-max (max new-combo (get max-combo current-combo)))
+        (new-max (if (> new-combo (get max-combo current-combo)) new-combo (get max-combo current-combo)))
     )
         (map-set UserCombos tx-sender
             {
@@ -3053,10 +3053,11 @@
             (let ((bonus-points (* new-combo u10)))
                 (let ((current-claimable (default-to u0 (map-get? ClaimableRewards tx-sender))))
                     (map-set ClaimableRewards tx-sender (+ current-claimable bonus-points))
+                    (print { event: "combo-bonus", user: tx-sender, combo: new-combo, bonus: bonus-points })
+                    true
                 )
-                (print { event: "combo-bonus", user: tx-sender, combo: new-combo, bonus: bonus-points })
             )
-            false
+            true
         )
         
         (ok new-combo)
