@@ -17,6 +17,26 @@ import { STACKS_MAINNET, STACKS_TESTNET } from '@stacks/network';
 
 export const useContract = () => {
   const { userSession } = useStacks();
+  const network = NETWORK === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET;
+
+  // Helper for read-only calls using callReadOnlyFunction
+  const callReadOnly = useCallback(async (functionName: string, functionArgs: any[]) => {
+    try {
+      const senderAddress = CONTRACT_ID.split('.')[0];
+      const result = await callReadOnlyFunction({
+        contractAddress: CONTRACT_ID.split('.')[0],
+        contractName: CONTRACT_ID.split('.')[1],
+        functionName,
+        functionArgs,
+        network,
+        senderAddress,
+      });
+      return cvToJSON(result);
+    } catch (error) {
+      console.error(`Error calling ${functionName}:`, error);
+      throw error;
+    }
+  }, [network]);
 
   const getListing = useCallback(async (id: number) => {
     try {
