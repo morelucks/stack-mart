@@ -2,7 +2,17 @@ import { useCallback, useRef } from 'react';
 import { CONTRACT_ID, API_URL, NETWORK } from '../config/contract';
 import { useStacks } from './useStacks';
 import { getStacksAddress } from '../utils/validation';
-import { uintCV, AnchorMode, PostConditionMode, makeContractCall } from '@stacks/transactions';
+import { 
+  uintCV, 
+  stringAsciiCV,
+  principalCV,
+  AnchorMode, 
+  PostConditionMode, 
+  makeContractCall,
+  cvToJSON,
+  callReadOnlyFunction
+} from '@stacks/transactions';
+import { openContractCall } from '@stacks/connect';
 import { STACKS_MAINNET, STACKS_TESTNET } from '@stacks/network';
 
 export const useContract = () => {
