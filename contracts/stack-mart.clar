@@ -414,6 +414,10 @@
   , weight: uint
   })
 
+;; =============================================================================
+;; LISTING MANAGEMENT - CORE
+;; =============================================================================
+
 (define-private (add-listing-to-seller-index (seller principal) (listing-id uint))
   (let ((current-count (default-to u0 (map-get? seller-listing-count { seller: seller }))))
     (map-set seller-listings 
@@ -422,6 +426,28 @@
     (map-set seller-listing-count
       { seller: seller }
       (+ current-count u1))))
+
+(define-public (create-listing (price uint) 
+                               (royalty-bips uint) 
+                               (royalty-recipient principal))
+  (begin
+    (asserts! (not (var-get paused)) ERR_PAUSED)
+    (asserts! (validate-price price) ERR_INVALID_INPUT)
+    (asserts! (validate-royalty royalty-bips) ERR_BAD_ROYALTY)
+    (let ((id (var-get next-id)))
+      (map-set listings
+        { id: id }
+        { seller: tx-sender
+        , price: price
+        , royalty-bips: royalty-bips
+        , royalty-recipient: royalty-recipient
+        , nft-contract: none
+        , token-id: none
+        , license-terms: none })
+      (var-set next-id (+ id u1))
+      (add-listing-to-seller-index tx-sender id)
+      (print { event: "listing_created", id: id, seller: tx-sender, price: price })
+      (ok id))))
 
 ;; Enhanced listing creation with description
 (define-public (create-listing-enhanced 
