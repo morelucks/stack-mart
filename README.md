@@ -133,7 +133,20 @@ For detailed integration guides and examples, see:
 
 ## Frontend Setup
 
-The frontend is a React + TypeScript application using Vite.
+The frontend is a React + TypeScript application using Vite with full Stacks blockchain integration.
+
+### Stacks Integration
+
+StackMart uses `@stacks/connect` and `@stacks/transactions` for blockchain interactions:
+
+- **@stacks/connect** - Wallet connection and transaction signing
+- **@stacks/transactions** - Transaction building and contract calls
+- **Read-only functions** - Using `callReadOnlyFunction()` for data fetching
+- **Write functions** - Using `openContractCall()` for state changes
+
+See [STACKS_INTEGRATION.md](./frontend/STACKS_INTEGRATION.md) for detailed integration guide.
+
+### Quick Start
 
 1. Navigate to the frontend directory:
    ```bash
@@ -160,6 +173,34 @@ The frontend is a React + TypeScript application using Vite.
    ```bash
    npm run build
    ```
+
+### Available Contract Functions
+
+The `useContract` hook provides all marketplace functions:
+
+**Listings:**
+- `createListing()` - Create new NFT listing
+- `buyListing()` - Purchase a listing
+- `cancelListing()` - Cancel your listing
+- `updateListingPrice()` - Update listing price
+
+**Auctions:**
+- `createAuction()` - Create English auction
+- `placeBid()` - Bid on auction
+- `finalizeAuction()` - Complete auction
+
+**Bundles:**
+- `createBundle()` - Create discounted bundle
+
+**Disputes:**
+- `raiseDispute()` - Raise escrow dispute
+- `voteOnDispute()` - Vote on dispute resolution
+- `resolveDispute()` - Finalize dispute
+
+**Wishlist:**
+- `toggleWishlist()` - Add/remove from wishlist
+
+See the `StacksIntegrationExample` component for usage examples.
 ## Recent Enhancements (Jan 2026)
 - **Advanced Auctions**: Implemented English auctions with reserve prices and duration.
 - **Bundle Purchases**: Added logic to purchase multiple listings in one transaction with discounts.
