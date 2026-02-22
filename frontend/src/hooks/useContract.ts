@@ -400,6 +400,45 @@ export const useContract = () => {
     }
   }, [API_URL, CONTRACT_ID]);
 
+  // Write functions using @stacks/connect
+  const network = NETWORK === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET;
+
+  const createListing = useCallback(async (
+    nftContract: string,
+    nftId: number,
+    price: number,
+    title: string,
+    description: string
+  ) => {
+    try {
+      const options = {
+        network,
+        anchorMode: AnchorMode.Any,
+        contractAddress: CONTRACT_ID.split('.')[0],
+        contractName: CONTRACT_ID.split('.')[1],
+        functionName: 'create-listing',
+        functionArgs: [
+          principalCV(nftContract),
+          uintCV(nftId),
+          uintCV(price),
+          stringAsciiCV(title),
+          stringAsciiCV(description)
+        ],
+        postConditionMode: PostConditionMode.Deny,
+        onFinish: (data: any) => {
+          console.log('Transaction submitted:', data.txId);
+        },
+        onCancel: () => {
+          console.log('Transaction cancelled');
+        },
+      };
+      await openContractCall(options);
+    } catch (error) {
+      console.error('Error creating listing:', error);
+      throw error;
+    }
+  }, [network]);
+
   const toggleWishlist = useCallback(async (listingId: number) => {
     console.log('Toggling wishlist for:', listingId);
     try {
