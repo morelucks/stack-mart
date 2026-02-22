@@ -559,18 +559,74 @@
             (ok true)))
       ERR_NOT_FOUND)))
 
+;; =============================================================================
+;; LISTING MANAGEMENT - UPDATES
+;; =============================================================================
+
 (define-public (update-listing-price (id uint) (new-price uint))
-  (let (
-    (listing (unwrap! (map-get? listings { id: id }) ERR_NOT_FOUND))
-    (current-history (get history (default-to { history: (list) } (map-get? price-history { listing-id: id }))))
-  )
+  (let ((listing (unwrap! (map-get? listings { id: id }) ERR_NOT_FOUND))
+        (current-history (get history (default-to { history: (list) } 
+                                                   (map-get? price-history { listing-id: id })))))
     (begin
-        (asserts! (is-eq (get seller listing) tx-sender) ERR_NOT_OWNER)
-        (map-set listings { id: id } (merge listing { price: new-price }))
-        (map-set price-history 
-          { listing-id: id } 
-          { history: (unwrap! (as-max-len? (append current-history { price: new-price, block-height: burn-block-height }) u10) (err u500)) })
-        (ok true))))
+      (asserts! (is-eq (get seller listing) tx-sender) ERR_NOT_OWNER)
+      (asserts! (validate-price new-price) ERR_INVALID_INPUT)
+      (map-set listings { id: id } (merge listing { price: new-price }))
+      (map-set price-history 
+        { listing-id: id } 
+        { history: (unwrap! (as-max-len? 
+                             (append current-history 
+                                     { price: new-price, block-height: burn-block-height }) 
+                             u10) 
+                           (err u500)) })
+      (ok true))))
+
+(define-public (set-listing-category (listing-id uint) 
+                                     (category (string-ascii 50)) 
+                                     (tags (list 5 (string-ascii 20))))
+  (match (map-get? listings { id: listing-id })
+    listing
+      (begin
+        (asserts! (is-eq tx-sender (get seller listing)) ERR_NOT_OWNER)
+        (map-set listing-categories
+          { listing-id: listing-id }
+          { category: category, tags: tags })
+        (ok true))
+    ERR_NOT_FOUND))
+
+(define-public (set-listing-active (listing-id uint) (active bool))
+  (match (map-get? listings { id: listing-id })
+    listing
+      (begin
+        (asserts! (is-eq tx-sender (get seller listing)) ERR_NOT_OWNER)
+        (map-set listing-status
+          { listing-id: listing-id }
+          { active: active
+          , featured: (get featured (default-to { active: true, featured: false, 
+                                                  promoted-until-block: u0 } 
+                                                (map-get? listing-status { listing-id: listing-id })))
+          , promoted-until-block: (get promoted-until-block 
+                                      (default-to { active: true, featured: false, 
+                                                   promoted-until-block: u0 } 
+                                                  (map-get? listing-status { listing-id: listing-id }))) })
+        (ok true))
+    ERR_NOT_FOUND))
+
+(define-public (promote-listing (listing-id uint) (duration-blocks uint))
+  (match (map-get? listings { id: listing-id })
+    listing
+      (begin
+        (asserts! (is-eq tx-sender (get seller listing)) ERR_NOT_OWNER)
+        (let ((promotion-fee u1000))
+          (try! (stx-transfer? promotion-fee tx-sender (var-get fee-recipient))))
+        (map-set listing-status
+          { listing-id: listing-id }
+          { active: (get active (default-to { active: true, featured: false, 
+                                             promoted-until-block: u0 } 
+                                            (map-get? listing-status { listing-id: listing-id })))
+          , featured: true
+          , promoted-until-block: (+ burn-block-height duration-blocks) })
+        (ok true))
+    ERR_NOT_FOUND))
 
 (define-read-only (get-wishlist (user principal))
   (ok (default-to { listing-ids: (list) } (map-get? wishlists { user: user }))))
