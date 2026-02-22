@@ -150,7 +150,13 @@
 (define-private (validate-string-length (str (string-ascii 500)) (max-len uint))
   (<= (len str) max-len))
 
-;; Security helpers
+;; =============================================================================
+;; SECURITY HELPERS
+;; =============================================================================
+
+(define-constant RATE_LIMIT_WINDOW u10)
+(define-constant MAX_ACTIONS_PER_WINDOW u20)
+
 (define-private (check-reentrancy)
   (begin
     (asserts! (not (var-get reentrancy-guard)) ERR_REENTRANCY)
@@ -161,14 +167,14 @@
   (var-set reentrancy-guard false))
 
 (define-private (check-rate-limit (principal principal))
-  (let ((current-limit (default-to { last-action: u0, action-count: u0 } (map-get? rate-limits { principal: principal })))
+  (let ((current-limit (default-to { last-action: u0, action-count: u0 } 
+                                   (map-get? rate-limits { principal: principal })))
         (current-block burn-block-height))
     (if (> (- current-block (get last-action current-limit)) RATE_LIMIT_WINDOW)
-      ;; Reset window
       (begin
-        (map-set rate-limits { principal: principal } { last-action: current-block, action-count: u1 })
+        (map-set rate-limits { principal: principal } 
+                 { last-action: current-block, action-count: u1 })
         (ok true))
-      ;; Check within window
       (if (< (get action-count current-limit) MAX_ACTIONS_PER_WINDOW)
         (begin
           (map-set rate-limits { principal: principal } 
