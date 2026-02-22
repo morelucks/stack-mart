@@ -966,7 +966,10 @@
       (print { event: "listing_created", id: id, seller: tx-sender, price: price })
       (ok id))))
 
-;; Create listing with NFT and license terms
+;; =============================================================================
+;; LISTING MANAGEMENT - NFT
+;; =============================================================================
+
 (define-public (create-listing-with-nft
     (nft-contract principal)
     (token-id uint)
@@ -975,10 +978,9 @@
     (royalty-recipient principal)
     (license-terms (string-ascii 500)))
   (begin
-    (asserts! (<= royalty-bips MAX_ROYALTY_BIPS) ERR_BAD_ROYALTY)
-    ;; Verify seller owns the NFT - logic temporarily removed due to trait issue
-    ;; (asserts! (verify-nft-ownership nft-contract token-id tx-sender) ERR_NOT_OWNER)
-
+    (asserts! (not (var-get paused)) ERR_PAUSED)
+    (asserts! (validate-price price) ERR_INVALID_INPUT)
+    (asserts! (validate-royalty royalty-bips) ERR_BAD_ROYALTY)
     (let ((id (var-get next-id)))
       (map-set listings
         { id: id }
@@ -991,7 +993,8 @@
         , license-terms: (some license-terms) })
       (var-set next-id (+ id u1))
       (add-listing-to-seller-index tx-sender id)
-      (print { event: "listing_created_nft", id: id, seller: tx-sender, price: price, nft: nft-contract, token-id: token-id })
+      (print { event: "listing_created_nft", id: id, seller: tx-sender, 
+               price: price, nft: nft-contract, token-id: token-id })
       (ok id))))
 
 ;; Legacy immediate purchase (kept for backward compatibility)
