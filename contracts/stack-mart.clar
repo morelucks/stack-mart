@@ -1131,30 +1131,28 @@
           (ok true)))
     ERR_NOT_FOUND))
 
-;; Create escrow for listing purchase
-;; Now properly holds STX in contract
+;; =============================================================================
+;; ESCROW SYSTEM - CORE
+;; =============================================================================
+
+(define-read-only (get-escrow-status (listing-id uint))
+  (match (map-get? escrows { listing-id: listing-id })
+    escrow (ok escrow)
+    ERR_ESCROW_NOT_FOUND))
+
 (define-public (buy-listing-escrow (id uint))
   (match (map-get? listings { id: id })
     listing
       (begin
-        ;; Security checks
         (try! (check-reentrancy))
         (try! (check-rate-limit tx-sender))
-        ;; Check escrow doesn't already exist (duplicate prevention)
         (asserts! (is-none (map-get? escrows { listing-id: id })) ERR_INVALID_STATE)
-        ;; Validate state consistency
         (asserts! (validate-state-consistency id) ERR_INVALID_STATE)
-        (let (
-              (price (get price listing))
+        (let ((price (get price listing))
               (seller (get seller listing))
-              (timeout-block (+ burn-block-height ESCROW_TIMEOUT_BLOCKS))
-              (nonce (get-next-nonce tx-sender))
-             )
+              (timeout-block (+ burn-block-height ESCROW_TIMEOUT_BLOCKS)))
           (begin
-            ;; Create escrow record
-            ;; Transfer STX to contract
             (try! (stx-transfer? price tx-sender (as-contract tx-sender)))
-            
             (map-set escrows
               { listing-id: id }
               { buyer: tx-sender
@@ -1162,7 +1160,9 @@
               , amount: price
               , created-at-block: burn-block-height
               , state: "pending"
-              , timeout-block: (+ burn-block-height ESCROW_TIMEOUT_BLOCKS) })
+              , timeout-block: timeout-block
+              , stx-held: true })
+            (clear-reentrancy)
             (ok true))))
     ERR_NOT_FOUND))
 
