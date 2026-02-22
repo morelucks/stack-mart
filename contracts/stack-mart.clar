@@ -402,7 +402,24 @@
         (print { event: "listing_created", id: id, seller: tx-sender, price: price })
         (ok id)))))
 
-;; Price history tracking - enhanced
+;; =============================================================================
+;; DATA MAPS - OFFERS & PRICE HISTORY
+;; =============================================================================
+
+(define-map offers
+  { id: uint }
+  { listing-id: uint
+  , buyer: principal
+  , amount: uint
+  , expires-at-block: uint
+  , accepted: bool
+  , cancelled: bool
+  })
+
+(define-map price-history
+  { listing-id: uint }
+  { history: (list 10 { price: uint, block-height: uint }) })
+
 (define-map price-history-v2
   { listing-id: uint }
   { prices: (list 50 { price: uint, timestamp: uint, event-type: (string-ascii 20) })
@@ -411,11 +428,6 @@
   , max-price: uint
   , price-changes: uint
   })
-
-;; Legacy price history (kept for backward compatibility)
-(define-map price-history
-  { listing-id: uint }
-  { history: (list 10 { price: uint, block-height: uint }) })
 
 (define-public (set-admin (new-admin principal)) 
   (begin 
