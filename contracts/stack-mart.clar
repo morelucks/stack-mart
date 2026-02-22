@@ -487,7 +487,10 @@
            (map-set listing-likes-count { listing-id: listing-id } { count: (+ current-likes u1) }))
         (ok true)))))
 
-;; Auction System
+;; =============================================================================
+;; DATA MAPS - AUCTIONS & BUNDLES
+;; =============================================================================
+
 (define-map auctions
   { id: uint }
   { seller: principal
@@ -498,7 +501,46 @@
   , end-block: uint
   , highest-bid: uint
   , highest-bidder: (optional principal)
-  , state: (string-ascii 20) ;; "active", "ended", "cancelled"
+  , state: (string-ascii 20)
+  })
+
+(define-map bundles
+  { id: uint }
+  { listing-ids: (list 10 uint)
+  , discount-bips: uint
+  , creator: principal
+  , created-at-block: uint
+  })
+
+(define-map bundles-v2
+  { id: uint }
+  { listing-ids: (list 10 uint)
+  , discount-bips: uint
+  , creator: principal
+  , created-at-block: uint
+  , expires-at: (optional uint)
+  , total-value: uint
+  , discounted-price: uint
+  })
+
+(define-map packs
+  { id: uint }
+  { listing-ids: (list 20 uint)
+  , price: uint
+  , curator: principal
+  , created-at-block: uint
+  })
+
+(define-map packs-v2
+  { id: uint }
+  { listing-ids: (list 20 uint)
+  , price: uint
+  , curator: principal
+  , curator-fee-bips: uint
+  , created-at-block: uint
+  , expires-at: (optional uint)
+  , purchases: uint
+  , active: bool
   })
 
 (define-public (create-auction (nft-contract principal) (token-id uint) (start-price uint) (reserve-price uint) (duration uint))
