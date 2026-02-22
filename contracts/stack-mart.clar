@@ -219,32 +219,39 @@
       (ok (- current-id count))
       (ok u1))))
 
-;; Duplicate operation prevention helpers
+;; =============================================================================
+;; OPERATION TRACKING
+;; =============================================================================
+
 (define-private (get-next-nonce (principal principal))
   (let ((current-nonce (default-to u0 (map-get? operation-nonces { principal: principal }))))
     (begin
       (map-set operation-nonces { principal: principal } (+ current-nonce u1))
       (+ current-nonce u1))))
 
-(define-private (check-operation-not-completed (principal principal) (operation-type (string-ascii 50)) (nonce uint))
-  (is-none (map-get? completed-operations { principal: principal, operation-type: operation-type, nonce: nonce })))
+(define-private (check-operation-not-completed (principal principal) 
+                                                (operation-type (string-ascii 50)) 
+                                                (nonce uint))
+  (is-none (map-get? completed-operations 
+                     { principal: principal, operation-type: operation-type, nonce: nonce })))
 
-(define-private (mark-operation-completed (principal principal) (operation-type (string-ascii 50)) (nonce uint))
-  (map-set completed-operations { principal: principal, operation-type: operation-type, nonce: nonce } true))
+(define-private (mark-operation-completed (principal principal) 
+                                          (operation-type (string-ascii 50)) 
+                                          (nonce uint))
+  (map-set completed-operations 
+           { principal: principal, operation-type: operation-type, nonce: nonce } 
+           true))
 
 (define-private (validate-state-consistency (listing-id uint))
   (match (map-get? listings { id: listing-id })
     listing
       (match (map-get? escrows { listing-id: listing-id })
         escrow
-          ;; If escrow exists, listing should still exist unless confirmed/released
           (let ((escrow-state (get state escrow)))
             (or (is-eq escrow-state "pending")
                 (is-eq escrow-state "delivered")
                 (is-eq escrow-state "disputed")))
-        ;; No escrow is fine
         true)
-    ;; No listing - check if escrow exists (shouldn't)
     (is-none (map-get? escrows { listing-id: listing-id }))))
 
 ;; Bundle and pack constants
