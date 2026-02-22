@@ -1887,14 +1887,55 @@
   , active: bool
   })
 
-;; Helper function to validate pack listings exist
+;; =============================================================================
+;; BUNDLE SYSTEM - PACK HELPERS
+;; =============================================================================
+
 (define-private (validate-pack-listings (listing-ids (list 20 uint)))
   (fold validate-pack-listing-exists listing-ids true))
 
 (define-private (validate-pack-listing-exists (listing-id uint) (acc bool))
   (if (not acc)
-    false ;; Previous validation failed
-    (is-some (map-get? listings { id: listing-id })))) ;; Check if listing exists
+    false
+    (is-some (map-get? listings { id: listing-id }))))
+
+(define-private (process-pack-purchases-v2 (listing-ids (list 20 uint)) 
+                                           (buyer principal) 
+                                           (seller-payment uint))
+  (fold process-single-pack-purchase listing-ids (ok true)))
+
+(define-private (process-single-pack-purchase (listing-id uint) (acc (response bool uint)))
+  (match acc
+    (ok success)
+      (if success
+        (match (map-get? listings { id: listing-id })
+          listing
+            (begin
+              (map-delete listings { id: listing-id })
+              (ok true))
+          ERR_NOT_FOUND)
+        acc)
+    error-result error-result))
+
+(define-private (process-bundle-purchases-v2 (listing-ids (list 10 uint)) 
+                                             (buyer principal) 
+                                             (seller principal))
+  (fold process-single-bundle-purchase listing-ids (ok true)))
+
+(define-private (process-single-bundle-purchase (listing-id uint) (acc (response bool uint)))
+  (match acc
+    (ok success)
+      (if success
+        (match (map-get? listings { id: listing-id })
+          listing
+            (begin
+              (map-delete listings { id: listing-id })
+              (update-reputation seller true u0)
+              (update-reputation buyer true u0)
+              (ok true))
+          ERR_NOT_FOUND)
+        acc)
+    error-result error-result))
 
 ;; Buy a curated pack - OPTIMIZED
 (define-public (buy-curated-pack-v2 (pack-id uint))
