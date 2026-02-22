@@ -216,6 +216,10 @@
 ;; Note: Using burn-block-height for timeout calculation
 (define-constant ESCROW_TIMEOUT_BLOCKS u144)
 
+;; =============================================================================
+;; DATA MAPS - CORE
+;; =============================================================================
+
 (define-map listings
   { id: uint }
   { seller: principal
@@ -225,6 +229,26 @@
   , nft-contract: (optional principal)
   , token-id: (optional uint)
   , license-terms: (optional (string-ascii 500))
+  })
+
+(define-map escrows
+  { listing-id: uint }
+  { buyer: principal
+  , seller: principal
+  , amount: uint
+  , created-at-block: uint
+  , state: (string-ascii 20)
+  , timeout-block: uint
+  , stx-held: bool
+  })
+
+(define-map delivery-attestations
+  { listing-id: uint }
+  { delivery-hash: (buff 32)
+  , attested-at-block: uint
+  , confirmed: bool
+  , rejected: bool
+  , rejection-reason: (optional (string-ascii 200))
   })
 
 ;; Seller Indexing Maps
