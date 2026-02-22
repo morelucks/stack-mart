@@ -251,7 +251,10 @@
   , rejection-reason: (optional (string-ascii 200))
   })
 
-;; Seller Indexing Maps
+;; =============================================================================
+;; DATA MAPS - INDEXING
+;; =============================================================================
+
 (define-map seller-listings 
   { seller: principal, index: uint } 
   { listing-id: uint })
@@ -259,6 +262,27 @@
 (define-map seller-listing-count
   { seller: principal }
   uint)
+
+(define-map wishlists
+  { user: principal }
+  { listing-ids: (list 100 uint) })
+
+(define-map listing-likes-count
+  { listing-id: uint }
+  { count: uint })
+
+(define-map listing-categories
+  { listing-id: uint }
+  { category: (string-ascii 50)
+  , tags: (list 5 (string-ascii 20))
+  })
+
+(define-map listing-status
+  { listing-id: uint }
+  { active: bool
+  , featured: bool
+  , promoted-until-block: uint
+  })
 
 ;; Escrow state: pending, delivered, confirmed, disputed, released, cancelled
 (define-map escrows
