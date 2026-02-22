@@ -439,6 +439,31 @@ export const useContract = () => {
     }
   }, [network]);
 
+  const buyListing = useCallback(async (listingId: number, price: number) => {
+    try {
+      const options = {
+        network,
+        anchorMode: AnchorMode.Any,
+        contractAddress: CONTRACT_ID.split('.')[0],
+        contractName: CONTRACT_ID.split('.')[1],
+        functionName: 'buy-listing',
+        functionArgs: [uintCV(listingId)],
+        postConditions: [],
+        postConditionMode: PostConditionMode.Deny,
+        onFinish: (data: any) => {
+          console.log('Purchase transaction submitted:', data.txId);
+        },
+        onCancel: () => {
+          console.log('Purchase cancelled');
+        },
+      };
+      await openContractCall(options);
+    } catch (error) {
+      console.error('Error buying listing:', error);
+      throw error;
+    }
+  }, [network]);
+
   const toggleWishlist = useCallback(async (listingId: number) => {
     console.log('Toggling wishlist for:', listingId);
     try {
