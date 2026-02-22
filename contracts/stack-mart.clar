@@ -834,40 +834,42 @@
         , last-updated: burn-block-height
         , verification-level: (get verification-level current-rep) }))))
 
-(define-read-only (get-user-reputation (user principal))
-  (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } (map-get? reputation { user: user }))))
+;; =============================================================================
+;; READ-ONLY FUNCTIONS - REPUTATION
+;; =============================================================================
 
-;; Legacy aliases for compatibility
+(define-read-only (get-user-reputation (user principal))
+  (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, 
+                    rating-count: u0, total-volume: u0 } 
+                  (map-get? reputation { user: user }))))
+
 (define-read-only (get-seller-reputation (seller principal))
-  (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } (map-get? reputation { user: seller }))))
+  (get-user-reputation seller))
 
 (define-read-only (get-buyer-reputation (buyer principal))
-  (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } (map-get? reputation { user: buyer }))))
+  (get-user-reputation buyer))
 
-;; Enhanced reputation system functions
 (define-read-only (get-reputation-v2 (principal principal))
-  (ok (default-to { 
-    successful-txs: u0, 
-    failed-txs: u0, 
-    total-volume: u0, 
-    rating-sum: u0, 
-    rating-count: u0, 
-    weighted-score: u0, 
-    last-updated: u0, 
-    verification-level: u0 
-  } (map-get? reputation-v2 { principal: principal }))))
+  (ok (default-to { successful-txs: u0, failed-txs: u0, total-volume: u0, 
+                    rating-sum: u0, rating-count: u0, weighted-score: u0, 
+                    last-updated: u0, verification-level: u0 } 
+                  (map-get? reputation-v2 { principal: principal }))))
 
-(define-private (calculate-weighted-score (successful-txs uint) (failed-txs uint) (total-volume uint) (rating-sum uint) (rating-count uint))
-  (let ((total-txs (+ successful-txs failed-txs))
-        (success-rate (if (> total-txs u0) (/ (* successful-txs u100) total-txs) u0))
-        (avg-rating (if (> rating-count u0) (/ rating-sum rating-count) u0))
-        (volume-weight (if (< (/ total-volume u1000) u100) (/ total-volume u1000) u100))) ;; Cap volume weight at 100
-    (+ (* success-rate u40) (* avg-rating u40) (* volume-weight u20))))
+(define-read-only (get-seller-average-rating (seller principal))
+  (let ((rep (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, 
+                           rating-count: u0, total-volume: u0 } 
+                         (map-get? reputation { user: seller }))))
+    (if (> (get rating-count rep) u0)
+      (ok (/ (get rating-sum rep) (get rating-count rep)))
+      (ok u0))))
 
-;; Enhanced reputation update with bug fixes - ACTIVE VERSION
-(define-private (update-reputation-v2 (principal principal) (success bool) (amount uint) (rating (optional uint)))
-  ;; Redirect to fixed version
-  (update-reputation-v2-fixed principal success amount rating))
+(define-read-only (get-formatted-reputation (user principal)) 
+  (let ((rep (unwrap! (get-user-reputation user) (err u0))))
+    (ok { user: rep
+        , success-rate: (if (> (+ (get successful-txs rep) (get failed-txs rep)) u0)
+                           (/ (* (get successful-txs rep) u100)
+                              (+ (get successful-txs rep) (get failed-txs rep)))
+                           u0) })))
 
 ;; Mutual rating function
 (define-public (rate-transaction (listing-id uint) (rating uint) (comment (optional (string-ascii 200))))
