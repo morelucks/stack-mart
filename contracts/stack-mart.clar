@@ -104,9 +104,42 @@
 (define-data-var reentrancy-guard bool false)
 (define-data-var remove-id-iter uint u0)
 
-;; Input validation helpers
+;; =============================================================================
+;; DATA MAPS - SECURITY & EVENTS
+;; =============================================================================
+
+(define-map rate-limits
+  { principal: principal }
+  { last-action: uint
+  , action-count: uint
+  })
+
+(define-map operation-nonces
+  { principal: principal }
+  uint)
+
+(define-map completed-operations
+  { principal: principal
+  , operation-type: (string-ascii 50)
+  , nonce: uint }
+  bool)
+
+(define-map events
+  { event-id: uint }
+  { event-type: (string-ascii 50)
+  , principal: principal
+  , listing-id: (optional uint)
+  , amount: (optional uint)
+  , timestamp: uint
+  , data: (optional (string-ascii 500))
+  })
+
+;; =============================================================================
+;; VALIDATION HELPERS
+;; =============================================================================
+
 (define-private (validate-price (price uint))
-  (and (> price u0) (<= price u1000000000000))) ;; Max 1 trillion microSTX
+  (and (> price u0) (<= price u1000000000000)))
 
 (define-private (validate-royalty (royalty-bips uint))
   (<= royalty-bips MAX_ROYALTY_BIPS))
