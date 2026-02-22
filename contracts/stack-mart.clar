@@ -76,9 +76,33 @@
 (define-constant MIN_STAKE_AMOUNT u1000)
 (define-constant DISPUTE_RESOLUTION_THRESHOLD u5000)
 
-;; Marketplace fee constants
-(define-data-var marketplace-fee-bips uint u250) ;; 2.5% fee
-(define-data-var fee-recipient principal tx-sender) ;; Deployer is initial fee recipient
+;; =============================================================================
+;; STATE VARIABLES
+;; =============================================================================
+
+;; ID Counters
+(define-data-var next-id uint u1)
+(define-data-var next-bundle-id uint u1)
+(define-data-var next-pack-id uint u1)
+(define-data-var next-auction-id uint u1)
+(define-data-var next-dispute-id uint u1)
+(define-data-var next-offer-id uint u1)
+(define-data-var next-event-id uint u1)
+
+;; Admin & Configuration
+(define-data-var admin principal tx-sender)
+(define-data-var paused bool false)
+(define-data-var marketplace-fee-bips uint u250)
+(define-data-var fee-recipient principal tx-sender)
+
+;; Metrics
+(define-data-var total-volume uint u0)
+(define-data-var total-transactions uint u0)
+(define-data-var total-fees-collected uint u0)
+
+;; Security
+(define-data-var reentrancy-guard bool false)
+(define-data-var remove-id-iter uint u0)
 
 ;; Input validation helpers
 (define-private (validate-price (price uint))
