@@ -467,24 +467,27 @@ export const useContract = () => {
   const toggleWishlist = useCallback(async (listingId: number) => {
     console.log('Toggling wishlist for:', listingId);
     try {
-      const userData = userSession.loadUserData() as any;
-      const network = NETWORK === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET;
-      const txOptions = {
-        contractAddress: CONTRACT_ID.split(".")[0],
-        contractName: CONTRACT_ID.split(".")[1],
-        functionName: "toggle-wishlist",
-        functionArgs: [uintCV(listingId)],
-        senderKey: userData?.appPrivateKey || userData?.profile?.stxPrivateKey,
+      const options = {
         network,
         anchorMode: AnchorMode.Any,
+        contractAddress: CONTRACT_ID.split('.')[0],
+        contractName: CONTRACT_ID.split('.')[1],
+        functionName: 'toggle-wishlist',
+        functionArgs: [uintCV(listingId)],
         postConditionMode: PostConditionMode.Allow,
+        onFinish: (data: any) => {
+          console.log('Wishlist toggle submitted:', data.txId);
+        },
+        onCancel: () => {
+          console.log('Wishlist toggle cancelled');
+        },
       };
-      return await makeContractCall(txOptions);
+      await openContractCall(options);
     } catch (error) {
       console.error('Error toggling wishlist:', error);
       throw error;
     }
-  }, [userSession]);
+  }, [network]);
 
   return {
     getListing,
