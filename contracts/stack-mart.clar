@@ -903,9 +903,9 @@
 
 ;; Legacy function - kept for backward compatibility (no NFT)
 
-(define-data-var total-volume uint u0)
-(define-data-var total-transactions uint u0)
-(define-data-var total-fees-collected uint u0)
+;; =============================================================================
+;; MARKETPLACE METRICS
+;; =============================================================================
 
 (define-private (update-marketplace-metrics (amount uint) (fee uint))
   (begin
