@@ -537,7 +537,67 @@ export const useContract = () => {
     }
   }, [network]);
 
-    getListing,
+  const createAuction = useCallback(async (
+    nftContract: string,
+    nftId: number,
+    startPrice: number,
+    reservePrice: number,
+    duration: number
+  ) => {
+    try {
+      const options = {
+        network,
+        anchorMode: AnchorMode.Any,
+        contractAddress: CONTRACT_ID.split('.')[0],
+        contractName: CONTRACT_ID.split('.')[1],
+        functionName: 'create-auction',
+        functionArgs: [
+          principalCV(nftContract),
+          uintCV(nftId),
+          uintCV(startPrice),
+          uintCV(reservePrice),
+          uintCV(duration)
+        ],
+        postConditionMode: PostConditionMode.Deny,
+        onFinish: (data: any) => {
+          console.log('Auction created:', data.txId);
+        },
+        onCancel: () => {
+          console.log('Auction creation cancelled');
+        },
+      };
+      await openContractCall(options);
+    } catch (error) {
+      console.error('Error creating auction:', error);
+      throw error;
+    }
+  }, [network]);
+
+  const placeBid = useCallback(async (auctionId: number, bidAmount: number) => {
+    try {
+      const options = {
+        network,
+        anchorMode: AnchorMode.Any,
+        contractAddress: CONTRACT_ID.split('.')[0],
+        contractName: CONTRACT_ID.split('.')[1],
+        functionName: 'place-bid',
+        functionArgs: [uintCV(auctionId), uintCV(bidAmount)],
+        postConditionMode: PostConditionMode.Deny,
+        onFinish: (data: any) => {
+          console.log('Bid placed:', data.txId);
+        },
+        onCancel: () => {
+          console.log('Bid cancelled');
+        },
+      };
+      await openContractCall(options);
+    } catch (error) {
+      console.error('Error placing bid:', error);
+      throw error;
+    }
+  }, [network]);
+
+  return {
     getEscrowStatus,
     getAllListings,
     getDispute,
