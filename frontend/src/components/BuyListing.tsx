@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useStacks } from '../hooks/useStacks';
-import { makeContractCall, broadcastTransaction, AnchorMode, PostConditionMode, uintCV } from '@stacks/transactions';
-import { CONTRACT_ID } from '../config/contract';
+import { useContract } from '../hooks/useContract';
 
 interface BuyListingProps {
   listingId: number;
@@ -11,55 +10,21 @@ interface BuyListingProps {
 }
 
 export const BuyListing = ({ listingId, price, onSuccess, onError }: BuyListingProps) => {
-  const { userSession, network, isConnected } = useStacks();
+  const { isConnected } = useStacks();
+  const { buyListing } = useContract();
   const [useEscrow, setUseEscrow] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleBuy = async () => {
-    if (!isConnected || !userSession) {
+    if (!isConnected) {
       onError?.('Please connect your wallet first');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      let userData;
-      try {
-        userData = userSession.loadUserData();
-      } catch (error) {
-        onError?.('Please connect your wallet first');
-        setIsSubmitting(false);
-        return;
-      }
-      
-      if (!userData || !userData.appPrivateKey) {
-        onError?.('Wallet not properly connected');
-        setIsSubmitting(false);
-        return;
-      }
-
-      const functionName = useEscrow ? 'buy-listing-escrow' : 'buy-listing';
-      
-      const txOptions = {
-        contractAddress: CONTRACT_ID.split('.')[0],
-        contractName: CONTRACT_ID.split('.')[1],
-        functionName,
-        functionArgs: [uintCV(listingId)],
-        senderKey: userData.appPrivateKey,
-        network,
-        anchorMode: AnchorMode.Any,
-        postConditionMode: PostConditionMode.Allow,
-        fee: 150000,
-      };
-
-      const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction({ transaction, network });
-
-      if ('error' in broadcastResponse) {
-        onError?.(broadcastResponse.error);
-      } else {
-        onSuccess?.(broadcastResponse.txid);
-      }
+      await buyListing(listingId, price);
+      onSuccess?.('Transaction submitted');
     } catch (error) {
       console.error('Error buying listing:', error);
       onError?.(error instanceof Error ? error.message : 'Failed to buy listing');
