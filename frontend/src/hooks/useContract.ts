@@ -651,6 +651,8 @@ export const useContract = () => {
   }, [network]);
 
   return {
+    // Read-only functions
+    getListing,
     getEscrowStatus,
     getAllListings,
     getDispute,
@@ -662,10 +664,20 @@ export const useContract = () => {
     getBuyerReputation,
     getWishlist,
     getPriceHistory,
+    // Write functions
+    createListing,
+    buyListing,
+    cancelListing,
+    updateListingPrice,
+    toggleWishlist,
+    createAuction,
+    placeBid,
+    finalizeAuction,
+    createBundle,
+    // Legacy/placeholder functions
     getListingsBySeller: (seller: string) => Promise.resolve([]),
     isWishlisted: (listingId: number) => Promise.resolve(false),
     setMarketplaceFee: (fee: number) => Promise.resolve({success: true}),
     setFeeRecipient: (recipient: string) => Promise.resolve({success: true}),
-    toggleWishlist,
   };
 };
