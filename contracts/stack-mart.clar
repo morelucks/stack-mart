@@ -1,54 +1,47 @@
-;; StackMart marketplace scaffold
+;; StackMart - Decentralized NFT Marketplace
+;; Version: 2.0.0
 
-;; SIP-009 NFT Standard Trait
-;; Standard interface for NFT contracts on Stacks
+;; =============================================================================
+;; TRAITS
+;; =============================================================================
+
 (define-trait sip009-nft-trait
   (
-    ;; Get the owner of an NFT token
-    ;; Returns (optional principal) if token exists, or error code
     (get-owner (uint) (response (optional principal) uint))
-    
-    ;; Transfer an NFT from sender to recipient
-    ;; Returns bool (true if successful) or error code
     (transfer (uint principal principal) (response bool uint))
   )
 )
 
-(define-data-var next-id uint u1)
-(define-data-var next-bundle-id uint u1)
-(define-data-var next-pack-id uint u1)
+;; =============================================================================
+;; ERROR CODES
+;; =============================================================================
 
-;; Constants for new features
-(define-constant MAX_LISTING_DESCRIPTION_LENGTH u1000)
-(define-constant MAX_TAGS_PER_LISTING u10)
-(define-constant MIN_AUCTION_DURATION u144) ;; 1 day minimum
-(define-constant MAX_AUCTION_DURATION u1440) ;; 10 days maximum
-(define-data-var next-auction-id uint u1)
+;; Client errors (400-499)
 (define-constant ERR_BAD_ROYALTY (err u400))
-(define-constant ERR_NOT_FOUND (err u404))
-(define-constant ERR_NOT_OWNER (err u403))
-(define-constant ERR_NFT_TRANSFER_FAILED (err u500))
-(define-constant ERR_ESCROW_NOT_FOUND (err u404))
 (define-constant ERR_INVALID_STATE (err u400))
-(define-constant ERR_NOT_BUYER (err u403))
-(define-constant ERR_NOT_SELLER (err u403))
+(define-constant ERR_INVALID_LISTING (err u400))
+(define-constant ERR_BUNDLE_EMPTY (err u400))
 (define-constant ERR_TIMEOUT_NOT_REACHED (err u400))
 (define-constant ERR_ALREADY_ATTESTED (err u400))
 (define-constant ERR_NOT_DELIVERED (err u400))
-(define-constant ERR_DISPUTE_NOT_FOUND (err u404))
 (define-constant ERR_DISPUTE_RESOLVED (err u400))
 (define-constant ERR_INSUFFICIENT_STAKES (err u400))
 (define-constant ERR_INVALID_SIDE (err u400))
+(define-constant ERR_NOT_OWNER (err u403))
+(define-constant ERR_NOT_BUYER (err u403))
+(define-constant ERR_NOT_SELLER (err u403))
+(define-constant ERR_NOT_FOUND (err u404))
+(define-constant ERR_ESCROW_NOT_FOUND (err u404))
+(define-constant ERR_DISPUTE_NOT_FOUND (err u404))
 (define-constant ERR_BUNDLE_NOT_FOUND (err u404))
 (define-constant ERR_PACK_NOT_FOUND (err u404))
-(define-constant ERR_INVALID_LISTING (err u400))
-(define-constant ERR_BUNDLE_EMPTY (err u400))
-(define-data-var admin principal tx-sender)
 (define-constant ERR_ALREADY_WISHLISTED (err u405))
 (define-constant ERR_PAUSED (err u406))
-(define-data-var paused bool false)
 
-;; Enhanced error codes for improved validation
+;; Server errors (500-599)
+(define-constant ERR_NFT_TRANSFER_FAILED (err u500))
+
+;; Security errors (600-699)
 (define-constant ERR_REENTRANCY (err u600))
 (define-constant ERR_RATE_LIMITED (err u601))
 (define-constant ERR_INSUFFICIENT_BALANCE (err u602))
@@ -60,6 +53,28 @@
 (define-constant ERR_INVALID_INPUT (err u608))
 (define-constant ERR_ZERO_AMOUNT (err u609))
 (define-constant ERR_OVERFLOW (err u610))
+
+;; =============================================================================
+;; CONSTANTS
+;; =============================================================================
+
+;; Limits
+(define-constant MAX_LISTING_DESCRIPTION_LENGTH u1000)
+(define-constant MAX_TAGS_PER_LISTING u10)
+(define-constant MAX_BUNDLE_SIZE u10)
+(define-constant MAX_PACK_SIZE u20)
+(define-constant MAX_ROYALTY_BIPS u2000)
+(define-constant MAX_DISCOUNT_BIPS u5000)
+(define-constant BPS_DENOMINATOR u10000)
+
+;; Auction
+(define-constant MIN_AUCTION_DURATION u144)
+(define-constant MAX_AUCTION_DURATION u1440)
+
+;; Escrow & Disputes
+(define-constant ESCROW_TIMEOUT_BLOCKS u144)
+(define-constant MIN_STAKE_AMOUNT u1000)
+(define-constant DISPUTE_RESOLUTION_THRESHOLD u5000)
 
 ;; Marketplace fee constants
 (define-data-var marketplace-fee-bips uint u250) ;; 2.5% fee
