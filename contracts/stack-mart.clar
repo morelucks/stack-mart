@@ -331,8 +331,9 @@
   { principal: principal }
   uint)
 
-;; Dispute resolution system
-(define-data-var next-dispute-id uint u1)
+;; =============================================================================
+;; DATA MAPS - DISPUTES
+;; =============================================================================
 
 (define-map disputes
   { id: uint }
