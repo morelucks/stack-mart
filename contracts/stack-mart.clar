@@ -990,26 +990,30 @@
                               (+ (get successful-txs rep) (get failed-txs rep)))
                            u0) })))
 
-;; Mutual rating function
-(define-public (rate-transaction (listing-id uint) (rating uint) (comment (optional (string-ascii 200))))
+;; =============================================================================
+;; RATING SYSTEM
+;; =============================================================================
+
+(define-public (rate-transaction (listing-id uint) 
+                                 (rating uint) 
+                                 (comment (optional (string-ascii 200))))
   (begin
-    ;; Validate rating is between 1-5
     (asserts! (and (>= rating u1) (<= rating u5)) ERR_INVALID_INPUT)
-    ;; Check transaction exists and caller was involved
     (match (map-get? escrows { listing-id: listing-id })
       escrow
         (begin
-          ;; Only buyer or seller can rate, and only after completion
-          (asserts! (or (is-eq tx-sender (get buyer escrow)) (is-eq tx-sender (get seller escrow))) ERR_NOT_OWNER)
+          (asserts! (or (is-eq tx-sender (get buyer escrow)) 
+                       (is-eq tx-sender (get seller escrow))) ERR_NOT_OWNER)
           (asserts! (is-eq (get state escrow) "confirmed") ERR_INVALID_STATE)
-          ;; Check if already rated
-          (asserts! (is-none (map-get? transaction-ratings { listing-id: listing-id, rater: tx-sender })) ERR_INVALID_STATE)
-          ;; Record rating
+          (asserts! (is-none (map-get? transaction-ratings 
+                                      { listing-id: listing-id, rater: tx-sender })) 
+                   ERR_INVALID_STATE)
           (map-set transaction-ratings
             { listing-id: listing-id, rater: tx-sender }
             { rating: rating, comment: comment, timestamp: burn-block-height })
-          ;; Update reputation of the other party
-          (let ((other-party (if (is-eq tx-sender (get buyer escrow)) (get seller escrow) (get buyer escrow))))
+          (let ((other-party (if (is-eq tx-sender (get buyer escrow)) 
+                                (get seller escrow) 
+                                (get buyer escrow))))
             (update-reputation-v2-fixed other-party true (get amount escrow) (some rating)))
           (ok true))
       ERR_ESCROW_NOT_FOUND)))
