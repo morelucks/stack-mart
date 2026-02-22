@@ -1454,6 +1454,10 @@
     tx (ok tx)
     ERR_NOT_FOUND))
 
+;; =============================================================================
+;; DISPUTE SYSTEM - READ-ONLY
+;; =============================================================================
+
 (define-read-only (get-dispute (dispute-id uint))
   (match (map-get? disputes { id: dispute-id })
     dispute (ok dispute)
