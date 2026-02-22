@@ -1301,23 +1301,28 @@
         , total-volume: (if success (+ (get total-volume current-rep) amount) (get total-volume current-rep)) })
       (print { event: "reputation_updated", user: user, success: success, amount: amount }))))
 
-;; Helper function to record transaction history
-(define-private (record-transaction (principal principal) (listing-id uint) (counterparty principal) (amount uint) (completed bool))
+;; =============================================================================
+;; TRANSACTION HISTORY
+;; =============================================================================
+
+(define-private (record-transaction (principal principal) 
+                                    (listing-id uint) 
+                                    (counterparty principal) 
+                                    (amount uint) 
+                                    (completed bool))
   (let ((current-index (default-to u0 (map-get? tx-index-counter { principal: principal }))))
     (begin
       (map-set transaction-history
-        { principal: principal
-        , tx-index: current-index }
+        { principal: principal, tx-index: current-index }
         { listing-id: listing-id
         , counterparty: counterparty
         , amount: amount
         , completed: completed
-        , timestamp: u0 })
+        , timestamp: burn-block-height })
       (map-set tx-index-counter
         { principal: principal }
         (+ current-index u1)))))
 
-;; Get transaction history for a principal (returns transaction by index)
 (define-read-only (get-transaction-history (principal principal) (index uint))
   (match (map-get? transaction-history { principal: principal, tx-index: index })
     tx (ok tx)
