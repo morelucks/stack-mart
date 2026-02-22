@@ -597,6 +597,59 @@ export const useContract = () => {
     }
   }, [network]);
 
+  const finalizeAuction = useCallback(async (auctionId: number) => {
+    try {
+      const options = {
+        network,
+        anchorMode: AnchorMode.Any,
+        contractAddress: CONTRACT_ID.split('.')[0],
+        contractName: CONTRACT_ID.split('.')[1],
+        functionName: 'finalize-auction',
+        functionArgs: [uintCV(auctionId)],
+        postConditionMode: PostConditionMode.Allow,
+        onFinish: (data: any) => {
+          console.log('Auction finalized:', data.txId);
+        },
+        onCancel: () => {
+          console.log('Finalization cancelled');
+        },
+      };
+      await openContractCall(options);
+    } catch (error) {
+      console.error('Error finalizing auction:', error);
+      throw error;
+    }
+  }, [network]);
+
+  const createBundle = useCallback(async (listingIds: number[], discountPercent: number) => {
+    try {
+      const options = {
+        network,
+        anchorMode: AnchorMode.Any,
+        contractAddress: CONTRACT_ID.split('.')[0],
+        contractName: CONTRACT_ID.split('.')[1],
+        functionName: 'create-bundle',
+        functionArgs: [
+          // Convert array to Clarity list
+          uintCV(listingIds.length),
+          ...listingIds.map(id => uintCV(id)),
+          uintCV(discountPercent)
+        ],
+        postConditionMode: PostConditionMode.Allow,
+        onFinish: (data: any) => {
+          console.log('Bundle created:', data.txId);
+        },
+        onCancel: () => {
+          console.log('Bundle creation cancelled');
+        },
+      };
+      await openContractCall(options);
+    } catch (error) {
+      console.error('Error creating bundle:', error);
+      throw error;
+    }
+  }, [network]);
+
   return {
     getEscrowStatus,
     getAllListings,
