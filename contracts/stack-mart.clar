@@ -1760,17 +1760,33 @@
 
 
 
+;; =============================================================================
+;; BUNDLE SYSTEM - HELPERS
+;; =============================================================================
+
+(define-private (validate-bundle-listings (listing-ids (list 10 uint)) (creator principal))
+  (fold validate-bundle-listing listing-ids true))
+
+(define-private (validate-bundle-listing (listing-id uint) (acc bool))
+  (if (not acc)
+    false
+    (match (map-get? listings { id: listing-id })
+      listing (is-eq (get seller listing) tx-sender)
+      false)))
+
+(define-private (calculate-bundle-total-value (listing-ids (list 10 uint)))
+  (fold sum-listing-price listing-ids u0))
+
 (define-private (sum-listing-price (listing-id uint) (acc uint))
   (match (map-get? listings { id: listing-id })
     listing (+ acc (get price listing))
-    acc)) ;; If listing not found, don't add to total
+    acc))
 
-;; Helper function to calculate discounted bundle price
 (define-private (calculate-discounted-bundle-price (total-value uint) (discount-bips uint))
   (let ((discount-amount (/ (* total-value discount-bips) BPS_DENOMINATOR)))
     (if (> total-value discount-amount)
       (- total-value discount-amount)
-      u1))) ;; Minimum price of 1 microSTX
+      u1)))
 
 ;; Buy a bundle (purchases all listings in bundle with discount) - OPTIMIZED
 (define-public (buy-bundle-v2 (bundle-id uint))
