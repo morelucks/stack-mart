@@ -1,21 +1,21 @@
 import { useState } from 'react';
 import { useStacks } from '../hooks/useStacks';
-import { makeContractCall, broadcastTransaction, AnchorMode, PostConditionMode, uintCV, principalCV } from '@stacks/transactions';
-import { CONTRACT_ID } from '../config/contract';
-import { TRANSACTION_FEE } from '../config/constants';
-import { validatePrice, validateBasisPoints, validateStacksAddress } from '../utils/validation';
-import { MAX_ROYALTY_BIPS } from '../utils/constants';
+import { useContract } from '../hooks/useContract';
+import { validatePrice, validateStacksAddress } from '../utils/validation';
 
 export const CreateListing = () => {
-  const { userSession, network, isConnected } = useStacks();
+  const { isConnected } = useStacks();
+  const { createListing } = useContract();
+  const [nftContract, setNftContract] = useState('');
+  const [nftId, setNftId] = useState('');
   const [price, setPrice] = useState('');
-  const [royaltyBips, setRoyaltyBips] = useState('');
-  const [royaltyRecipient, setRoyaltyRecipient] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isConnected || !userSession) {
+    if (!isConnected) {
       alert('Please connect your wallet first');
       return;
     }
@@ -27,57 +27,36 @@ export const CreateListing = () => {
       return;
     }
 
-    const bipsValidation = validateBasisPoints(royaltyBips, MAX_ROYALTY_BIPS);
-    if (!bipsValidation.valid) {
-      alert(bipsValidation.error);
+    if (!validateStacksAddress(nftContract)) {
+      alert('Please enter a valid NFT contract address');
       return;
     }
 
-    if (!validateStacksAddress(royaltyRecipient)) {
-      alert('Please enter a valid Stacks address (starts with SP or ST)');
+    if (!nftId || parseInt(nftId) < 0) {
+      alert('Please enter a valid NFT ID');
+      return;
+    }
+
+    if (!title.trim()) {
+      alert('Please enter a title');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      let userData;
-      try {
-        userData = userSession.loadUserData();
-      } catch (error) {
-        alert('Please connect your wallet first');
-        setIsSubmitting(false);
-        return;
-      }
-
-      if (!userData || !userData.appPrivateKey) {
-        alert('Wallet not properly connected');
-        setIsSubmitting(false);
-        return;
-      }
-
       const priceMicroSTX = Math.floor(parseFloat(price) * 1000000);
-      const royaltyBipsNum = parseInt(royaltyBips);
+      const nftIdNum = parseInt(nftId);
 
-      const txOptions = {
-        contractAddress: CONTRACT_ID.split('.')[0],
-        contractName: CONTRACT_ID.split('.')[1],
-        functionName: 'create-listing',
-        functionArgs: [
-          uintCV(priceMicroSTX),
-          uintCV(royaltyBipsNum),
-          principalCV(royaltyRecipient),
-        ],
-        senderKey: userData.appPrivateKey,
-        network,
-        anchorMode: AnchorMode.Any,
-        postConditionMode: PostConditionMode.Allow,
-        fee: TRANSACTION_FEE,
-      };
+      await createListing(nftContract, nftIdNum, priceMicroSTX, title, description);
 
-      const transaction = await makeContractCall(txOptions);
-      const broadcastResponse = await broadcastTransaction({ transaction, network });
-
-      if ('error' in broadcastResponse) {
+      // Reset form
+      setNftContract('');
+      setNftId('');
+      setPrice('');
+      setTitle('');
+      setDescription('');
+      
+      if ('error' in {}) {
         alert(`Error: ${broadcastResponse.error}`);
       } else {
         alert(`Listing created! TX: ${broadcastResponse.txid}`);
