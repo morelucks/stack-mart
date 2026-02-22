@@ -186,8 +186,15 @@
 (define-private (verify-ownership (owner principal) (caller principal))
   (is-eq owner caller))
 
-;; Event logging helpers
-(define-private (log-event (event-type (string-ascii 50)) (principal principal) (listing-id (optional uint)) (amount (optional uint)) (data (optional (string-ascii 500))))
+;; =============================================================================
+;; EVENT LOGGING
+;; =============================================================================
+
+(define-private (log-event (event-type (string-ascii 50)) 
+                           (principal principal) 
+                           (listing-id (optional uint)) 
+                           (amount (optional uint)) 
+                           (data (optional (string-ascii 500))))
   (let ((event-id (var-get next-event-id)))
     (begin
       (map-set events
