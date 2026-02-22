@@ -482,6 +482,10 @@
   , price-changes: uint
   })
 
+;; =============================================================================
+;; ADMIN FUNCTIONS
+;; =============================================================================
+
 (define-public (set-admin (new-admin principal)) 
   (begin 
     (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER) 
@@ -490,6 +494,7 @@
 (define-public (set-marketplace-fee (new-fee uint)) 
   (begin 
     (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER) 
+    (asserts! (<= new-fee u1000) ERR_INVALID_INPUT)
     (ok (var-set marketplace-fee-bips new-fee))))
 
 (define-public (set-fee-recipient (new-recipient principal)) 
@@ -501,6 +506,29 @@
   (begin
     (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER)
     (ok (var-set paused new-paused))))
+
+(define-public (emergency-pause-listing (listing-id uint))
+  (begin
+    (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER)
+    (map-set listing-status
+      { listing-id: listing-id }
+      { active: false, featured: false, promoted-until-block: u0 })
+    (ok true)))
+
+(define-public (emergency-refund-escrow (listing-id uint))
+  (begin
+    (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER)
+    (match (map-get? escrows { listing-id: listing-id })
+      escrow
+        (let ((buyer (get buyer escrow))
+              (amount (get amount escrow)))
+          (begin
+            (try! (as-contract (stx-transfer? amount tx-sender buyer)))
+            (map-set escrows
+              { listing-id: listing-id }
+              (merge escrow { state: "cancelled" }))
+            (ok true)))
+      ERR_NOT_FOUND)))
 
 (define-public (update-listing-price (id uint) (new-price uint))
   (let (
