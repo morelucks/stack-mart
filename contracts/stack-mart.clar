@@ -628,18 +628,44 @@
         (ok true))
     ERR_NOT_FOUND))
 
+;; =============================================================================
+;; READ-ONLY FUNCTIONS - LISTINGS
+;; =============================================================================
+
+(define-read-only (get-next-id)
+  (ok (var-get next-id)))
+
+(define-read-only (get-listing (id uint))
+  (match (map-get? listings { id: id })
+    listing (ok listing)
+    ERR_NOT_FOUND))
+
+(define-read-only (get-listing-with-nft (id uint))
+  (get-listing id))
+
 (define-read-only (get-wishlist (user principal))
   (ok (default-to { listing-ids: (list) } (map-get? wishlists { user: user }))))
 
 (define-read-only (is-wishlisted (user principal) (listing-id uint)) 
-  (let ((current-wishlist (get listing-ids (default-to { listing-ids: (list) } (map-get? wishlists { user: user }))))) 
+  (let ((current-wishlist (get listing-ids (default-to { listing-ids: (list) } 
+                                                        (map-get? wishlists { user: user }))))) 
     (ok (is-some (index-of current-wishlist listing-id)))))
 
 (define-read-only (get-price-history (listing-id uint))
   (ok (default-to { history: (list) } (map-get? price-history { listing-id: listing-id }))))
 
 (define-read-only (get-listing-likes (listing-id uint))
-  (ok (get count (default-to { count: u0 } (map-get? listing-likes-count { listing-id: listing-id })))))
+  (ok (get count (default-to { count: u0 } 
+                             (map-get? listing-likes-count { listing-id: listing-id })))))
+
+(define-read-only (get-seller-listing-count (seller principal))
+  (default-to u0 (map-get? seller-listing-count { seller: seller })))
+
+(define-read-only (get-seller-listing-id-at-index (seller principal) (index uint))
+  (map-get? seller-listings { seller: seller, index: index }))
+
+(define-read-only (get-listings-by-seller (seller principal)) 
+  (ok "Use get-seller-listing-count and get-seller-listing-id-at-index to iterate"))
 
 ;; =============================================================================
 ;; WISHLIST SYSTEM
