@@ -284,19 +284,19 @@
   , promoted-until-block: uint
   })
 
-;; Escrow state: pending, delivered, confirmed, disputed, released, cancelled
-(define-map escrows
-  { listing-id: uint }
-  { buyer: principal
-  , seller: principal
-  , amount: uint
-  , created-at-block: uint
-  , state: (string-ascii 20)
-  , timeout-block: uint
-  , stx-held: bool
+;; =============================================================================
+;; DATA MAPS - REPUTATION & HISTORY
+;; =============================================================================
+
+(define-map reputation
+  { user: principal }
+  { successful-txs: uint
+  , failed-txs: uint
+  , rating-sum: uint
+  , rating-count: uint
+  , total-volume: uint
   })
 
-;; Reputation system - enhanced with weighted scoring
 (define-map reputation-v2
   { principal: principal }
   { successful-txs: uint
@@ -309,7 +309,6 @@
   , verification-level: uint
   })
 
-;; Mutual rating system
 (define-map transaction-ratings
   { listing-id: uint
   , rater: principal }
@@ -318,32 +317,6 @@
   , timestamp: uint
   })
 
-;; Reputation system
-(define-map reputation
-  { user: principal }
-  { successful-txs: uint
-  , failed-txs: uint
-  , rating-sum: uint
-  , rating-count: uint
-  , total-volume: uint
-  })
-
-;; Like system
-(define-map listing-likes-count
-  { listing-id: uint }
-  { count: uint })
-
-;; Delivery attestations
-(define-map delivery-attestations
-  { listing-id: uint }
-  { delivery-hash: (buff 32)
-  , attested-at-block: uint
-  , confirmed: bool
-  , rejected: bool
-  , rejection-reason: (optional (string-ascii 200))
-  })
-
-;; Transaction history tracking
 (define-map transaction-history
   { principal: principal
   , tx-index: uint }
