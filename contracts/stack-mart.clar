@@ -760,13 +760,79 @@
     escrow (ok escrow)
     ERR_ESCROW_NOT_FOUND))
 
-;; Shared default reputation structure
+;; =============================================================================
+;; REPUTATION SYSTEM
+;; =============================================================================
+
 (define-constant DEFAULT_REPUTATION {
-  successful-txs: u0
-, failed-txs: u0
-, rating-sum: u0
-, rating-count: u0
+  successful-txs: u0,
+  failed-txs: u0,
+  rating-sum: u0,
+  rating-count: u0
 })
+
+(define-private (update-reputation (user principal) (success bool) (amount uint))
+  (let ((current-rep (default-to 
+                       { successful-txs: u0, failed-txs: u0, rating-sum: u0, 
+                         rating-count: u0, total-volume: u0 } 
+                       (map-get? reputation { user: user }))))
+    (begin
+      (map-set reputation
+        { user: user }
+        { successful-txs: (if success (+ (get successful-txs current-rep) u1) 
+                                      (get successful-txs current-rep))
+        , failed-txs: (if success (get failed-txs current-rep) 
+                                  (+ (get failed-txs current-rep) u1))
+        , rating-sum: (get rating-sum current-rep)
+        , rating-count: (get rating-count current-rep)
+        , total-volume: (if success (+ (get total-volume current-rep) amount) 
+                                    (get total-volume current-rep)) })
+      (print { event: "reputation_updated", user: user, success: success, amount: amount }))))
+
+(define-private (calculate-weighted-score (successful-txs uint) 
+                                          (failed-txs uint) 
+                                          (total-volume uint) 
+                                          (rating-sum uint) 
+                                          (rating-count uint))
+  (let ((total-txs (+ successful-txs failed-txs))
+        (success-rate (if (> total-txs u0) (/ (* successful-txs u100) total-txs) u0))
+        (avg-rating (if (> rating-count u0) (/ rating-sum rating-count) u0))
+        (volume-weight (if (< (/ total-volume u1000) u100) (/ total-volume u1000) u100)))
+    (+ (* success-rate u40) (* avg-rating u40) (* volume-weight u20))))
+
+(define-private (update-reputation-v2-fixed (principal principal) 
+                                            (success bool) 
+                                            (amount uint) 
+                                            (rating (optional uint)))
+  (let ((current-rep (default-to 
+                       { successful-txs: u0, failed-txs: u0, total-volume: u0, 
+                         rating-sum: u0, rating-count: u0, weighted-score: u0, 
+                         last-updated: u0, verification-level: u0 }
+                       (map-get? reputation-v2 { principal: principal })))
+        (new-rating-sum (match rating
+                          r (+ (get rating-sum current-rep) r)
+                          (get rating-sum current-rep)))
+        (new-rating-count (match rating
+                            r (+ (get rating-count current-rep) u1)
+                            (get rating-count current-rep))))
+    (let ((new-successful (if success (+ (get successful-txs current-rep) u1) 
+                                      (get successful-txs current-rep)))
+          (new-failed (if success (get failed-txs current-rep) 
+                                  (+ (get failed-txs current-rep) u1)))
+          (new-volume (if success (+ (get total-volume current-rep) amount) 
+                                  (get total-volume current-rep)))
+          (new-score (calculate-weighted-score new-successful new-failed 
+                                               new-volume new-rating-sum new-rating-count)))
+      (map-set reputation-v2
+        { principal: principal }
+        { successful-txs: new-successful
+        , failed-txs: new-failed
+        , total-volume: new-volume
+        , rating-sum: new-rating-sum
+        , rating-count: new-rating-count
+        , weighted-score: new-score
+        , last-updated: burn-block-height
+        , verification-level: (get verification-level current-rep) }))))
 
 (define-read-only (get-user-reputation (user principal))
   (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } (map-get? reputation { user: user }))))
