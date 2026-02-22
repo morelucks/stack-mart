@@ -1,5 +1,15 @@
 ;; StackMart - Decentralized NFT Marketplace
 ;; Version: 2.0.0
+;; 
+;; A comprehensive marketplace for digital goods with:
+;; - Secure escrow system
+;; - NFT support with SIP-009 standard
+;; - Auction functionality
+;; - Bundle and pack purchases
+;; - Reputation and rating system
+;; - Dispute resolution
+;; - Wishlist and favorites
+;; - Price history tracking
 
 ;; =============================================================================
 ;; TRAITS
