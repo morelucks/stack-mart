@@ -10,11 +10,12 @@ import { BundleManagement } from './components/BundleManagement';
 import { CuratedPack } from './components/CuratedPack';
 import { DisputeResolution } from './components/DisputeResolution';
 import { Dashboard } from './components/Dashboard';
+import { StacksIntegrationExample } from './components/StacksIntegrationExample';
 import { useStacks } from './hooks/useStacks';
 import { useContract } from './hooks/useContract';
 import './App.css';
 
-type TabType = 'listings' | 'bundles' | 'packs' | 'disputes' | 'dashboard';
+type TabType = 'listings' | 'bundles' | 'packs' | 'disputes' | 'dashboard' | 'integration';
 
 function App() {
   const { isConnected } = useStacks();
@@ -446,6 +447,12 @@ function App() {
 
         {activeTab === 'dashboard' && (
           <Dashboard />
+        )}
+
+        {activeTab === 'integration' && (
+          <StacksIntegrationExample />
+        )}
+
 {activeTab === "auctions" && ( <section><h2>🔨 Active Auctions</h2><div className="grid grid-cols-1">No active auctions found.</div></section> )}
         )}
 
