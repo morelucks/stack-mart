@@ -489,7 +489,54 @@ export const useContract = () => {
     }
   }, [network]);
 
-  return {
+  const cancelListing = useCallback(async (listingId: number) => {
+    try {
+      const options = {
+        network,
+        anchorMode: AnchorMode.Any,
+        contractAddress: CONTRACT_ID.split('.')[0],
+        contractName: CONTRACT_ID.split('.')[1],
+        functionName: 'cancel-listing',
+        functionArgs: [uintCV(listingId)],
+        postConditionMode: PostConditionMode.Allow,
+        onFinish: (data: any) => {
+          console.log('Cancel transaction submitted:', data.txId);
+        },
+        onCancel: () => {
+          console.log('Cancel cancelled');
+        },
+      };
+      await openContractCall(options);
+    } catch (error) {
+      console.error('Error cancelling listing:', error);
+      throw error;
+    }
+  }, [network]);
+
+  const updateListingPrice = useCallback(async (listingId: number, newPrice: number) => {
+    try {
+      const options = {
+        network,
+        anchorMode: AnchorMode.Any,
+        contractAddress: CONTRACT_ID.split('.')[0],
+        contractName: CONTRACT_ID.split('.')[1],
+        functionName: 'update-listing-price',
+        functionArgs: [uintCV(listingId), uintCV(newPrice)],
+        postConditionMode: PostConditionMode.Allow,
+        onFinish: (data: any) => {
+          console.log('Price update submitted:', data.txId);
+        },
+        onCancel: () => {
+          console.log('Price update cancelled');
+        },
+      };
+      await openContractCall(options);
+    } catch (error) {
+      console.error('Error updating price:', error);
+      throw error;
+    }
+  }, [network]);
+
     getListing,
     getEscrowStatus,
     getAllListings,
