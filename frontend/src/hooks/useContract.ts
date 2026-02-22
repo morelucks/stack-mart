@@ -746,6 +746,9 @@ export const useContract = () => {
     placeBid,
     finalizeAuction,
     createBundle,
+    raiseDispute,
+    voteOnDispute,
+    resolveDispute,
     // Legacy/placeholder functions
     getListingsBySeller: (seller: string) => Promise.resolve([]),
     isWishlisted: (listingId: number) => Promise.resolve(false),
