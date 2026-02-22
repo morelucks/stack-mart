@@ -650,6 +650,78 @@ export const useContract = () => {
     }
   }, [network]);
 
+  const raiseDispute = useCallback(async (escrowId: number, reason: string) => {
+    try {
+      const options = {
+        network,
+        anchorMode: AnchorMode.Any,
+        contractAddress: CONTRACT_ID.split('.')[0],
+        contractName: CONTRACT_ID.split('.')[1],
+        functionName: 'raise-dispute',
+        functionArgs: [uintCV(escrowId), stringAsciiCV(reason)],
+        postConditionMode: PostConditionMode.Allow,
+        onFinish: (data: any) => {
+          console.log('Dispute raised:', data.txId);
+        },
+        onCancel: () => {
+          console.log('Dispute cancelled');
+        },
+      };
+      await openContractCall(options);
+    } catch (error) {
+      console.error('Error raising dispute:', error);
+      throw error;
+    }
+  }, [network]);
+
+  const voteOnDispute = useCallback(async (disputeId: number, voteFor: boolean, stakeAmount: number) => {
+    try {
+      const options = {
+        network,
+        anchorMode: AnchorMode.Any,
+        contractAddress: CONTRACT_ID.split('.')[0],
+        contractName: CONTRACT_ID.split('.')[1],
+        functionName: 'vote-on-dispute',
+        functionArgs: [uintCV(disputeId), voteFor ? uintCV(1) : uintCV(0), uintCV(stakeAmount)],
+        postConditionMode: PostConditionMode.Deny,
+        onFinish: (data: any) => {
+          console.log('Vote submitted:', data.txId);
+        },
+        onCancel: () => {
+          console.log('Vote cancelled');
+        },
+      };
+      await openContractCall(options);
+    } catch (error) {
+      console.error('Error voting on dispute:', error);
+      throw error;
+    }
+  }, [network]);
+
+  const resolveDispute = useCallback(async (disputeId: number) => {
+    try {
+      const options = {
+        network,
+        anchorMode: AnchorMode.Any,
+        contractAddress: CONTRACT_ID.split('.')[0],
+        contractName: CONTRACT_ID.split('.')[1],
+        functionName: 'resolve-dispute',
+        functionArgs: [uintCV(disputeId)],
+        postConditionMode: PostConditionMode.Allow,
+        onFinish: (data: any) => {
+          console.log('Dispute resolved:', data.txId);
+        },
+        onCancel: () => {
+          console.log('Resolution cancelled');
+        },
+      };
+      await openContractCall(options);
+    } catch (error) {
+      console.error('Error resolving dispute:', error);
+      throw error;
+    }
+  }, [network]);
+
   return {
     // Read-only functions
     getListing,
