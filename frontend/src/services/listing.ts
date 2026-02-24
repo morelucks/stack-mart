@@ -40,3 +40,17 @@ export const updateListingPrice = async (listingId: number, newPrice: number) =>
     }
   });
 };
+
+export const buyListing = async (listingId: number) => {
+  await openContractCall({
+    network: getNetwork(),
+    contractAddress: CONTRACT_ADDRESS,
+    contractName: CONTRACT_NAME,
+    functionName: 'buy-listing',
+    functionArgs: [uintCV(listingId)],
+    postConditionMode: PostConditionMode.Allow,
+    onFinish: (data) => {
+      console.log('Purchase complete:', data.txId);
+    }
+  });
+};
