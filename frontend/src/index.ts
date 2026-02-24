@@ -1,9 +1,12 @@
 export { createListing, updateListingPrice, buyListing } from './services/listing';
 export { toggleWishlist } from './services/wishlist';
 export { getListing, getWishlist, getSellerReputation } from './services/read';
+export { getTokenBalance, getTokenName, getTokenSymbol, getTotalSupply, transferToken } from './services/token';
 export { useWallet } from './hooks/useWallet';
 export { useListing } from './hooks/useListing';
+export { useTokenBalance } from './hooks/useTokenBalance';
 export { formatSTX, formatBips, stxToMicroSTX, microSTXToSTX } from './utils/format';
+export { formatTokenAmount, tokensToMicroTokens, microTokensToTokens } from './utils/token';
 export { truncateAddress, isValidStacksAddress, getExplorerUrl } from './utils/address';
 export { getNetwork } from './utils/network';
-export { CONTRACT_ADDRESS, CONTRACT_NAME, NETWORK } from './config/contract';
+export { CONTRACT_ADDRESS, CONTRACT_NAME, TOKEN_CONTRACT, NETWORK } from './config/contract';
