@@ -182,7 +182,7 @@
     (royalty-recipient principal)
     (description (string-ascii 500))
     (category (string-ascii 50))
-    (tags (list 10 (string-ascii 20))))
+    (tags (list 5 (string-ascii 20))))
   (begin
     (asserts! (not (var-get paused)) ERR_PAUSED)
     (asserts! (<= royalty-bips MAX_ROYALTY_BIPS) ERR_BAD_ROYALTY)
