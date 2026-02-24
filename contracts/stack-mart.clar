@@ -1082,7 +1082,7 @@
               ;; (Simplified: no reward from loser stakes yet, just refund)
               (asserts! (is-eq resolution my-side) ERR_INVALID_SIDE)
               
-              (try! (as-contract (stx-transfer? (get amount stake) tx-sender (get staker stake))))
+              (try! (as-contract (stx-transfer? (get amount stake) tx-sender tx-sender)))
               
               ;; Clear stake to prevent double claim
               (map-delete dispute-stakes { dispute-id: dispute-id, staker: tx-sender })
