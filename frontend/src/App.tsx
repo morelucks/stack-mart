@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Connect } from '@stacks/connect-react';
 import { HomePage } from './pages/HomePage';
 import { ListingDetail } from './pages/ListingDetail';
+import { Header } from './components/Header';
 import { userSession } from './utils/auth';
 
 function App() {
@@ -20,10 +21,13 @@ function App() {
       }}
     >
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/listing/:id" element={<ListingDetail listingId={1} />} />
-        </Routes>
+        <div className="min-h-screen bg-gray-50">
+          <Header />
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/listing/:id" element={<ListingDetail listingId={1} />} />
+          </Routes>
+        </div>
       </BrowserRouter>
     </Connect>
   );
