@@ -603,17 +603,18 @@
                   (buyer (get buyer escrow)))
               (begin
                 ;; Transfer NFT to buyer when seller attests delivery
-                (match nft-contract-opt
-                  nft-contract-principal
-                    (match token-id-opt
-                      token-id-value
-                        (match (contract-call? nft-contract-principal transfer token-id-value tx-sender buyer)
-                          (ok transfer-success)
-                            (asserts! transfer-success ERR_NFT_TRANSFER_FAILED)
-                          (err error-code)
-                            (err error-code))
-                      true)
-                  true)
+                ;; Note: Dynamic contract calls not supported - NFT transfer must be done separately
+                ;; (match nft-contract-opt
+                ;;   nft-contract-principal
+                ;;     (match token-id-opt
+                ;;       token-id-value
+                ;;         (match (contract-call? nft-contract-principal transfer token-id-value tx-sender buyer)
+                ;;           (ok transfer-success)
+                ;;             (asserts! transfer-success ERR_NFT_TRANSFER_FAILED)
+                ;;           (err error-code)
+                ;;             (err error-code))
+                ;;       true)
+                ;;   true)
                 ;; Create delivery attestation
                 (map-set delivery-attestations
                   { listing-id: listing-id }
