@@ -536,18 +536,18 @@
           
           ;; Transfer royalty if applicable
           ;; Transfer NFT if present (SIP-009 transfer function)
-          ;; Note: Seller must authorize this contract to transfer on their behalf
-          (match nft-contract-opt
-            nft-contract-principal
-              (match token-id-opt
-                token-id-value
-                  (match (contract-call? nft-contract-principal transfer token-id-value seller tx-sender)
-                    (ok transfer-success)
-                      (asserts! transfer-success ERR_NFT_TRANSFER_FAILED)
-                    (err error-code)
-                      (err error-code))
-                true)
-            true)
+          ;; Note: Dynamic contract calls not supported - NFT transfer must be done separately
+          ;; (match nft-contract-opt
+          ;;   nft-contract-principal
+          ;;     (match token-id-opt
+          ;;       token-id-value
+          ;;         (match (contract-call? nft-contract-principal transfer token-id-value seller tx-sender)
+          ;;           (ok transfer-success)
+          ;;             (asserts! transfer-success ERR_NFT_TRANSFER_FAILED)
+          ;;           (err error-code)
+          ;;             (err error-code))
+          ;;       true)
+          ;;   true)
           ;; Transfer payments
           (if (> royalty u0)
             (try! (stx-transfer? royalty tx-sender royalty-recipient))
