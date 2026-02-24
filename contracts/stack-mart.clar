@@ -1312,17 +1312,18 @@
                   true)
                 (try! (as-contract (stx-transfer? seller-share tx-sender tx-sender)))
                 ;; Transfer NFT if present
-                (match (get nft-contract listing)
-                  nft-contract-principal
-                    (match (get token-id listing)
-                      token-id-value
-                        (match (contract-call? nft-contract-principal transfer token-id-value tx-sender buyer)
-                          (ok transfer-success)
-                            (asserts! transfer-success ERR_NFT_TRANSFER_FAILED)
-                          (err error-code)
-                            (err error-code))
-                      true)
-                  true)
+                ;; Note: Dynamic contract calls not supported - NFT transfer must be done separately
+                ;; (match (get nft-contract listing)
+                ;;   nft-contract-principal
+                ;;     (match (get token-id listing)
+                ;;       token-id-value
+                ;;         (match (contract-call? nft-contract-principal transfer token-id-value tx-sender buyer)
+                ;;           (ok transfer-success)
+                ;;             (asserts! transfer-success ERR_NFT_TRANSFER_FAILED)
+                ;;           (err error-code)
+                ;;             (err error-code))
+                ;;       true)
+                ;;   true)
                 ;; Mark offer as accepted
                 (map-set offers
                   { id: offer-id }
