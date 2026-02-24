@@ -201,7 +201,15 @@ The `useContract` hook provides all marketplace functions:
 - `toggleWishlist()` - Add/remove from wishlist
 
 See the `StacksIntegrationExample` component for usage examples.
-## Recent Enhancements (Jan 2026)
+## Recent Enhancements (Feb 2026)
+- **Contract Fixes**: Resolved Clarity version compatibility issues
+- **Type Safety**: Fixed all type mismatches in function parameters
+- **Wishlist System**: Added complete user favorites functionality
+- **Security**: Disabled unsupported dynamic contract calls
+- **Deployment**: Successfully deployed to Stacks mainnet
+- **Documentation**: Added comprehensive deployment and testing guides
+
+## Previous Enhancements (Jan 2026)
 - **Advanced Auctions**: Implemented English auctions with reserve prices and duration.
 - **Bundle Purchases**: Added logic to purchase multiple listings in one transaction with discounts.
 - **Security Hardening**: Fixed escrow fund handling to prevent locked assets.
