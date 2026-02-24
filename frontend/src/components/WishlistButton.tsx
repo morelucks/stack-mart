@@ -1,31 +1,36 @@
-import React from 'react';
-import { useWishlistToggle } from '../hooks/useWishlistToggle';
+import { useState } from 'react';
+import { toggleWishlist } from '../services/wishlist';
 
 interface WishlistButtonProps {
   listingId: number;
-  isInWishlist: boolean;
+  isWishlisted?: boolean;
 }
 
-export const WishlistButton: React.FC<WishlistButtonProps> = ({ listingId, isInWishlist }) => {
-  const { toggleWishlist } = useWishlistToggle();
+export const WishlistButton = ({ listingId, isWishlisted = false }: WishlistButtonProps) => {
+  const [wishlisted, setWishlisted] = useState(isWishlisted);
+  const [loading, setLoading] = useState(false);
 
   const handleToggle = async () => {
-    await toggleWishlist(listingId);
+    setLoading(true);
+    try {
+      await toggleWishlist(listingId);
+      setWishlisted(!wishlisted);
+    } catch (error) {
+      console.error('Wishlist toggle failed:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <button
       onClick={handleToggle}
-      style={{
-        background: isInWishlist ? '#ff4444' : '#4CAF50',
-        color: 'white',
-        border: 'none',
-        padding: '0.5rem 1rem',
-        borderRadius: '4px',
-        cursor: 'pointer',
-      }}
+      disabled={loading}
+      className={`px-3 py-1 rounded ${
+        wishlisted ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-700'
+      } hover:opacity-80 disabled:opacity-50`}
     >
-      {isInWishlist ? '❤️ Remove from Wishlist' : '🤍 Add to Wishlist'}
+      {wishlisted ? '❤️ Wishlisted' : '🤍 Add to Wishlist'}
     </button>
   );
 };
