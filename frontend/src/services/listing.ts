@@ -26,3 +26,17 @@ export const createListing = async (
     }
   });
 };
+
+export const updateListingPrice = async (listingId: number, newPrice: number) => {
+  await openContractCall({
+    network: getNetwork(),
+    contractAddress: CONTRACT_ADDRESS,
+    contractName: CONTRACT_NAME,
+    functionName: 'update-listing-price',
+    functionArgs: [uintCV(listingId), uintCV(newPrice)],
+    postConditionMode: PostConditionMode.Allow,
+    onFinish: (data) => {
+      console.log('Price updated:', data.txId);
+    }
+  });
+};
