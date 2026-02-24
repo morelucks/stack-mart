@@ -1,6 +1,7 @@
 import { ConnectWalletButton } from './ConnectWalletButton';
 import { useWallet } from '../hooks/useWallet';
 import { AddressDisplay } from './AddressDisplay';
+import { TokenBalance } from './TokenBalance';
 
 export const Header = () => {
   const { address, isConnected } = useWallet();
@@ -16,10 +17,13 @@ export const Header = () => {
 
           <div className="flex items-center gap-4">
             {isConnected && address && (
-              <div className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-lg">
-                <span className="text-sm text-gray-600">Connected:</span>
-                <AddressDisplay address={address} />
-              </div>
+              <>
+                <TokenBalance />
+                <div className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-lg">
+                  <span className="text-sm text-gray-600">Connected:</span>
+                  <AddressDisplay address={address} />
+                </div>
+              </>
             )}
             <ConnectWalletButton />
           </div>
