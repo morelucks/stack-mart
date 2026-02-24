@@ -1,73 +1,112 @@
-# React + TypeScript + Vite
+# StackMart Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + TypeScript frontend for StackMart decentralized marketplace.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+✅ **Wallet Integration** - @stacks/connect for authentication
+✅ **Contract Calls** - @stacks/transactions for blockchain interaction
+✅ **Listing Management** - Create, update, buy listings
+✅ **Wishlist System** - Favorite and track listings
+✅ **Admin Panel** - Marketplace fee management
+✅ **Reputation System** - Seller ratings and success rates
+✅ **Responsive UI** - Mobile-friendly design
 
-## React Compiler
+## Quick Start
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Environment
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+No environment variables needed - contract address is hardcoded for mainnet.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Tech Stack
+
+- **React 18** - UI framework
+- **TypeScript** - Type safety
+- **Vite** - Build tool
+- **@stacks/connect** - Wallet connection
+- **@stacks/transactions** - Contract calls
+- **React Router** - Navigation
+- **Tailwind CSS** - Styling
+
+## Project Structure
+
 ```
+src/
+├── components/     # React components
+├── pages/          # Page components
+├── services/       # Contract interaction
+├── hooks/          # Custom React hooks
+├── utils/          # Helper functions
+├── config/         # Configuration
+└── App.tsx         # Main app component
+```
+
+## Key Files
+
+- `services/listing.ts` - Listing write functions
+- `services/wishlist.ts` - Wishlist functions
+- `services/read.ts` - Read-only functions
+- `hooks/useWallet.ts` - Wallet state
+- `hooks/useListing.ts` - Listing data
+- `config/contract.ts` - Contract address
+
+## Usage
+
+### Connect Wallet
+```tsx
+import { ConnectWalletButton } from './components/ConnectWalletButton';
+
+<ConnectWalletButton />
+```
+
+### Create Listing
+```tsx
+import { createListing } from './services/listing';
+
+await createListing(1000000, 500, recipientAddress);
+```
+
+### Buy Listing
+```tsx
+import { buyListing } from './services/listing';
+
+await buyListing(listingId);
+```
+
+### Read Data
+```tsx
+import { getListing } from './services/read';
+
+const listing = await getListing(listingId, userAddress);
+```
+
+## Components
+
+All components are fully typed and documented. See `INTEGRATION_GUIDE.md` for details.
+
+## Development
+
+```bash
+npm run dev      # Start dev server
+npm run build    # Build for production
+npm run preview  # Preview production build
+```
+
+## Deployment
+
+```bash
+npm run build
+# Deploy dist/ folder to your hosting
+```
+
+## Contract Integration
+
+Contract: `SP34MN3DMM07BNAWYJSHTS4B08T8JRVK8AT810X1B.stack-mart`
+Network: Stacks Mainnet
+
+All transactions are signed via user's wallet. No private keys in frontend.
