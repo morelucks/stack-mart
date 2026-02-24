@@ -1,268 +1,56 @@
-;; StackMart - Decentralized NFT Marketplace
-;; Version: 2.0.0
-;; 
-;; A comprehensive marketplace for digital goods with:
-;; - Secure escrow system
-;; - NFT support with SIP-009 standard
-;; - Auction functionality
-;; - Bundle and pack purchases
-;; - Reputation and rating system
-;; - Dispute resolution
-;; - Wishlist and favorites
-;; - Price history tracking
+;; StackMart marketplace scaffold
 
-;; =============================================================================
-;; TRAITS
-;; =============================================================================
-
+;; SIP-009 NFT Standard Trait
+;; Standard interface for NFT contracts on Stacks
 (define-trait sip009-nft-trait
   (
+    ;; Get the owner of an NFT token
+    ;; Returns (optional principal) if token exists, or error code
     (get-owner (uint) (response (optional principal) uint))
+    
+    ;; Transfer an NFT from sender to recipient
+    ;; Returns bool (true if successful) or error code
     (transfer (uint principal principal) (response bool uint))
   )
 )
 
-;; =============================================================================
-;; ERROR CODES
-;; =============================================================================
-
-;; Client errors (400-499)
-(define-constant ERR_BAD_ROYALTY (err u400))
-(define-constant ERR_INVALID_STATE (err u400))
-(define-constant ERR_INVALID_LISTING (err u400))
-(define-constant ERR_BUNDLE_EMPTY (err u400))
-(define-constant ERR_TIMEOUT_NOT_REACHED (err u400))
-(define-constant ERR_ALREADY_ATTESTED (err u400))
-(define-constant ERR_NOT_DELIVERED (err u400))
-(define-constant ERR_DISPUTE_RESOLVED (err u400))
-(define-constant ERR_INSUFFICIENT_STAKES (err u400))
-(define-constant ERR_INVALID_SIDE (err u400))
-(define-constant ERR_NOT_OWNER (err u403))
-(define-constant ERR_NOT_BUYER (err u403))
-(define-constant ERR_NOT_SELLER (err u403))
-(define-constant ERR_NOT_FOUND (err u404))
-(define-constant ERR_ESCROW_NOT_FOUND (err u404))
-(define-constant ERR_DISPUTE_NOT_FOUND (err u404))
-(define-constant ERR_BUNDLE_NOT_FOUND (err u404))
-(define-constant ERR_PACK_NOT_FOUND (err u404))
-(define-constant ERR_ALREADY_WISHLISTED (err u405))
-(define-constant ERR_PAUSED (err u406))
-
-;; Server errors (500-599)
-(define-constant ERR_NFT_TRANSFER_FAILED (err u500))
-
-;; Security errors (600-699)
-(define-constant ERR_REENTRANCY (err u600))
-(define-constant ERR_RATE_LIMITED (err u601))
-(define-constant ERR_INSUFFICIENT_BALANCE (err u602))
-(define-constant ERR_INVALID_CATEGORY (err u603))
-(define-constant ERR_EXPIRED_LISTING (err u604))
-(define-constant ERR_INVALID_OFFER (err u605))
-(define-constant ERR_BATCH_SIZE_EXCEEDED (err u606))
-(define-constant ERR_MIGRATION_FAILED (err u607))
-(define-constant ERR_INVALID_INPUT (err u608))
-(define-constant ERR_ZERO_AMOUNT (err u609))
-(define-constant ERR_OVERFLOW (err u610))
-
-;; =============================================================================
-;; CONSTANTS
-;; =============================================================================
-
-;; Limits
-(define-constant MAX_LISTING_DESCRIPTION_LENGTH u1000)
-(define-constant MAX_TAGS_PER_LISTING u10)
-(define-constant MAX_BUNDLE_SIZE u10)
-(define-constant MAX_PACK_SIZE u20)
-(define-constant MAX_ROYALTY_BIPS u2000)
-(define-constant MAX_DISCOUNT_BIPS u5000)
-(define-constant BPS_DENOMINATOR u10000)
-
-;; Auction
-(define-constant MIN_AUCTION_DURATION u144)
-(define-constant MAX_AUCTION_DURATION u1440)
-
-;; Escrow & Disputes
-(define-constant ESCROW_TIMEOUT_BLOCKS u144)
-(define-constant MIN_STAKE_AMOUNT u1000)
-(define-constant DISPUTE_RESOLUTION_THRESHOLD u5000)
-
-;; =============================================================================
-;; STATE VARIABLES
-;; =============================================================================
-
-;; ID Counters
 (define-data-var next-id uint u1)
 (define-data-var next-bundle-id uint u1)
 (define-data-var next-pack-id uint u1)
+
+;; Constants for new features
+(define-constant MAX_LISTING_DESCRIPTION_LENGTH u1000)
+(define-constant MAX_TAGS_PER_LISTING u10)
+(define-constant MIN_AUCTION_DURATION u144) ;; 1 day minimum
+(define-constant MAX_AUCTION_DURATION u1440) ;; 10 days maximum
 (define-data-var next-auction-id uint u1)
-(define-data-var next-dispute-id uint u1)
-(define-data-var next-offer-id uint u1)
-(define-data-var next-event-id uint u1)
-
-;; Admin & Configuration
+(define-constant ERR_BAD_ROYALTY (err u400))
+(define-constant ERR_NOT_FOUND (err u404))
+(define-constant ERR_NOT_OWNER (err u403))
+(define-constant ERR_NFT_TRANSFER_FAILED (err u500))
+(define-constant ERR_ESCROW_NOT_FOUND (err u404))
+(define-constant ERR_INVALID_STATE (err u400))
+(define-constant ERR_NOT_BUYER (err u403))
+(define-constant ERR_NOT_SELLER (err u403))
+(define-constant ERR_TIMEOUT_NOT_REACHED (err u400))
+(define-constant ERR_ALREADY_ATTESTED (err u400))
+(define-constant ERR_NOT_DELIVERED (err u400))
+(define-constant ERR_DISPUTE_NOT_FOUND (err u404))
+(define-constant ERR_DISPUTE_RESOLVED (err u400))
+(define-constant ERR_INSUFFICIENT_STAKES (err u400))
+(define-constant ERR_INVALID_SIDE (err u400))
+(define-constant ERR_BUNDLE_NOT_FOUND (err u404))
+(define-constant ERR_PACK_NOT_FOUND (err u404))
+(define-constant ERR_INVALID_LISTING (err u400))
+(define-constant ERR_BUNDLE_EMPTY (err u400))
 (define-data-var admin principal tx-sender)
+(define-constant ERR_ALREADY_WISHLISTED (err u405))
+(define-constant ERR_PAUSED (err u406))
 (define-data-var paused bool false)
-(define-data-var marketplace-fee-bips uint u250)
-(define-data-var fee-recipient principal tx-sender)
 
-;; Metrics
-(define-data-var total-volume uint u0)
-(define-data-var total-transactions uint u0)
-(define-data-var total-fees-collected uint u0)
-
-;; Security
-(define-data-var reentrancy-guard bool false)
-(define-data-var remove-id-iter uint u0)
-
-;; =============================================================================
-;; DATA MAPS - SECURITY & EVENTS
-;; =============================================================================
-
-(define-map rate-limits
-  { principal: principal }
-  { last-action: uint
-  , action-count: uint
-  })
-
-(define-map operation-nonces
-  { principal: principal }
-  uint)
-
-(define-map completed-operations
-  { principal: principal
-  , operation-type: (string-ascii 50)
-  , nonce: uint }
-  bool)
-
-(define-map events
-  { event-id: uint }
-  { event-type: (string-ascii 50)
-  , principal: principal
-  , listing-id: (optional uint)
-  , amount: (optional uint)
-  , timestamp: uint
-  , data: (optional (string-ascii 500))
-  })
-
-;; =============================================================================
-;; VALIDATION HELPERS
-;; =============================================================================
-
-(define-private (validate-price (price uint))
-  (and (> price u0) (<= price u1000000000000)))
-
-(define-private (validate-royalty (royalty-bips uint))
-  (<= royalty-bips MAX_ROYALTY_BIPS))
-
-(define-private (validate-discount (discount-bips uint))
-  (<= discount-bips MAX_DISCOUNT_BIPS))
-
-(define-private (validate-string-length (str (string-ascii 500)) (max-len uint))
-  (<= (len str) max-len))
-
-;; =============================================================================
-;; SECURITY HELPERS
-;; =============================================================================
-
-(define-constant RATE_LIMIT_WINDOW u10)
-(define-constant MAX_ACTIONS_PER_WINDOW u20)
-
-(define-private (check-reentrancy)
-  (begin
-    (asserts! (not (var-get reentrancy-guard)) ERR_REENTRANCY)
-    (var-set reentrancy-guard true)
-    (ok true)))
-
-(define-private (clear-reentrancy)
-  (var-set reentrancy-guard false))
-
-(define-private (check-rate-limit (principal principal))
-  (let ((current-limit (default-to { last-action: u0, action-count: u0 } 
-                                   (map-get? rate-limits { principal: principal })))
-        (current-block burn-block-height))
-    (if (> (- current-block (get last-action current-limit)) RATE_LIMIT_WINDOW)
-      (begin
-        (map-set rate-limits { principal: principal } 
-                 { last-action: current-block, action-count: u1 })
-        (ok true))
-      (if (< (get action-count current-limit) MAX_ACTIONS_PER_WINDOW)
-        (begin
-          (map-set rate-limits { principal: principal } 
-            { last-action: (get last-action current-limit), 
-              action-count: (+ (get action-count current-limit) u1) })
-          (ok true))
-        ERR_RATE_LIMITED))))
-
-(define-private (verify-ownership (owner principal) (caller principal))
-  (is-eq owner caller))
-
-;; =============================================================================
-;; EVENT LOGGING
-;; =============================================================================
-
-(define-private (log-event (event-type (string-ascii 50)) 
-                           (principal principal) 
-                           (listing-id (optional uint)) 
-                           (amount (optional uint)) 
-                           (data (optional (string-ascii 500))))
-  (let ((event-id (var-get next-event-id)))
-    (begin
-      (map-set events
-        { event-id: event-id }
-        { event-type: event-type
-        , principal: principal
-        , listing-id: listing-id
-        , amount: amount
-        , timestamp: burn-block-height
-        , data: data })
-      (var-set next-event-id (+ event-id u1))
-      event-id)))
-
-(define-read-only (get-event (event-id uint))
-  (match (map-get? events { event-id: event-id })
-    event (ok event)
-    ERR_NOT_FOUND))
-
-(define-read-only (get-latest-events (count uint))
-  (let ((current-id (var-get next-event-id)))
-    (if (> current-id count)
-      (ok (- current-id count))
-      (ok u1))))
-
-;; =============================================================================
-;; OPERATION TRACKING
-;; =============================================================================
-
-(define-private (get-next-nonce (principal principal))
-  (let ((current-nonce (default-to u0 (map-get? operation-nonces { principal: principal }))))
-    (begin
-      (map-set operation-nonces { principal: principal } (+ current-nonce u1))
-      (+ current-nonce u1))))
-
-(define-private (check-operation-not-completed (principal principal) 
-                                                (operation-type (string-ascii 50)) 
-                                                (nonce uint))
-  (is-none (map-get? completed-operations 
-                     { principal: principal, operation-type: operation-type, nonce: nonce })))
-
-(define-private (mark-operation-completed (principal principal) 
-                                          (operation-type (string-ascii 50)) 
-                                          (nonce uint))
-  (map-set completed-operations 
-           { principal: principal, operation-type: operation-type, nonce: nonce } 
-           true))
-
-(define-private (validate-state-consistency (listing-id uint))
-  (match (map-get? listings { id: listing-id })
-    listing
-      (match (map-get? escrows { listing-id: listing-id })
-        escrow
-          (let ((escrow-state (get state escrow)))
-            (or (is-eq escrow-state "pending")
-                (is-eq escrow-state "delivered")
-                (is-eq escrow-state "disputed")))
-        true)
-    (is-none (map-get? escrows { listing-id: listing-id }))))
+;; Marketplace fee constants
+(define-data-var marketplace-fee-bips uint u250) ;; 2.5% fee
+(define-data-var fee-recipient principal tx-sender) ;; Deployer is initial fee recipient
 
 ;; Bundle and pack constants
 (define-constant MAX_BUNDLE_SIZE u10)
@@ -279,10 +67,6 @@
 ;; Note: Using burn-block-height for timeout calculation
 (define-constant ESCROW_TIMEOUT_BLOCKS u144)
 
-;; =============================================================================
-;; DATA MAPS - CORE
-;; =============================================================================
-
 (define-map listings
   { id: uint }
   { seller: principal
@@ -294,30 +78,7 @@
   , license-terms: (optional (string-ascii 500))
   })
 
-(define-map escrows
-  { listing-id: uint }
-  { buyer: principal
-  , seller: principal
-  , amount: uint
-  , created-at-block: uint
-  , state: (string-ascii 20)
-  , timeout-block: uint
-  , stx-held: bool
-  })
-
-(define-map delivery-attestations
-  { listing-id: uint }
-  { delivery-hash: (buff 32)
-  , attested-at-block: uint
-  , confirmed: bool
-  , rejected: bool
-  , rejection-reason: (optional (string-ascii 200))
-  })
-
-;; =============================================================================
-;; DATA MAPS - INDEXING
-;; =============================================================================
-
+;; Seller Indexing Maps
 (define-map seller-listings 
   { seller: principal, index: uint } 
   { listing-id: uint })
@@ -326,31 +87,17 @@
   { seller: principal }
   uint)
 
-(define-map wishlists
-  { user: principal }
-  { listing-ids: (list 100 uint) })
-
-(define-map listing-likes-count
+;; Escrow state: pending, delivered, confirmed, disputed, released, cancelled
+(define-map escrows
   { listing-id: uint }
-  { count: uint })
-
-(define-map listing-categories
-  { listing-id: uint }
-  { category: (string-ascii 50)
-  , tags: (list 5 (string-ascii 20))
+  { buyer: principal
+  , amount: uint
+  , created-at-block: uint
+  , state: (string-ascii 20)
+  , timeout-block: uint
   })
 
-(define-map listing-status
-  { listing-id: uint }
-  { active: bool
-  , featured: bool
-  , promoted-until-block: uint
-  })
-
-;; =============================================================================
-;; DATA MAPS - REPUTATION & HISTORY
-;; =============================================================================
-
+;; Reputation system
 (define-map reputation
   { user: principal }
   { successful-txs: uint
@@ -360,26 +107,22 @@
   , total-volume: uint
   })
 
-(define-map reputation-v2
-  { principal: principal }
-  { successful-txs: uint
-  , failed-txs: uint
-  , total-volume: uint
-  , rating-sum: uint
-  , rating-count: uint
-  , weighted-score: uint
-  , last-updated: uint
-  , verification-level: uint
+;; Like system
+(define-map listing-likes-count
+  { listing-id: uint }
+  { count: uint })
+
+;; Delivery attestations
+(define-map delivery-attestations
+  { listing-id: uint }
+  { delivery-hash: (buff 32)
+  , attested-at-block: uint
+  , confirmed: bool
+  , rejected: bool
+  , rejection-reason: (optional (string-ascii 200))
   })
 
-(define-map transaction-ratings
-  { listing-id: uint
-  , rater: principal }
-  { rating: uint
-  , comment: (optional (string-ascii 200))
-  , timestamp: uint
-  })
-
+;; Transaction history tracking
 (define-map transaction-history
   { principal: principal
   , tx-index: uint }
@@ -394,9 +137,8 @@
   { principal: principal }
   uint)
 
-;; =============================================================================
-;; DATA MAPS - DISPUTES
-;; =============================================================================
+;; Dispute resolution system
+(define-data-var next-dispute-id uint u1)
 
 (define-map disputes
   { id: uint }
@@ -424,10 +166,6 @@
   , weight: uint
   })
 
-;; =============================================================================
-;; LISTING MANAGEMENT - CORE
-;; =============================================================================
-
 (define-private (add-listing-to-seller-index (seller principal) (listing-id uint))
   (let ((current-count (default-to u0 (map-get? seller-listing-count { seller: seller }))))
     (map-set seller-listings 
@@ -437,32 +175,7 @@
       { seller: seller }
       (+ current-count u1))))
 
-(define-public (create-listing (price uint) 
-                               (royalty-bips uint) 
-                               (royalty-recipient principal))
-  (begin
-    (asserts! (not (var-get paused)) ERR_PAUSED)
-    (asserts! (validate-price price) ERR_INVALID_INPUT)
-    (asserts! (validate-royalty royalty-bips) ERR_BAD_ROYALTY)
-    (let ((id (var-get next-id)))
-      (map-set listings
-        { id: id }
-        { seller: tx-sender
-        , price: price
-        , royalty-bips: royalty-bips
-        , royalty-recipient: royalty-recipient
-        , nft-contract: none
-        , token-id: none
-        , license-terms: none })
-      (var-set next-id (+ id u1))
-      (add-listing-to-seller-index tx-sender id)
-      (print { event: "listing_created", id: id, seller: tx-sender, price: price })
-      (ok id))))
-
-;; =============================================================================
-;; LISTING MANAGEMENT - ENHANCED
-;; =============================================================================
-
+;; Enhanced listing creation with description
 (define-public (create-listing-enhanced 
     (price uint) 
     (royalty-bips uint) 
@@ -472,8 +185,7 @@
     (tags (list 10 (string-ascii 20))))
   (begin
     (asserts! (not (var-get paused)) ERR_PAUSED)
-    (asserts! (validate-price price) ERR_INVALID_INPUT)
-    (asserts! (validate-royalty royalty-bips) ERR_BAD_ROYALTY)
+    (asserts! (<= royalty-bips MAX_ROYALTY_BIPS) ERR_BAD_ROYALTY)
     (asserts! (<= (len description) MAX_LISTING_DESCRIPTION_LENGTH) ERR_INVALID_LISTING)
     (let ((id (var-get next-id)))
       (begin
@@ -488,42 +200,17 @@
           , license-terms: (some description) })
         (map-set listing-categories
           { listing-id: id }
-          { category: category, tags: tags })
+          { category: category
+          , tags: tags })
         (var-set next-id (+ id u1))
         (add-listing-to-seller-index tx-sender id)
         (print { event: "listing_created", id: id, seller: tx-sender, price: price })
         (ok id)))))
 
-;; =============================================================================
-;; DATA MAPS - OFFERS & PRICE HISTORY
-;; =============================================================================
-
-(define-map offers
-  { id: uint }
-  { listing-id: uint
-  , buyer: principal
-  , amount: uint
-  , expires-at-block: uint
-  , accepted: bool
-  , cancelled: bool
-  })
-
+;; Price history tracking
 (define-map price-history
   { listing-id: uint }
   { history: (list 10 { price: uint, block-height: uint }) })
-
-(define-map price-history-v2
-  { listing-id: uint }
-  { prices: (list 50 { price: uint, timestamp: uint, event-type: (string-ascii 20) })
-  , average-price: uint
-  , min-price: uint
-  , max-price: uint
-  , price-changes: uint
-  })
-
-;; =============================================================================
-;; ADMIN FUNCTIONS
-;; =============================================================================
 
 (define-public (set-admin (new-admin principal)) 
   (begin 
@@ -533,7 +220,6 @@
 (define-public (set-marketplace-fee (new-fee uint)) 
   (begin 
     (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER) 
-    (asserts! (<= new-fee u1000) ERR_INVALID_INPUT)
     (ok (var-set marketplace-fee-bips new-fee))))
 
 (define-public (set-fee-recipient (new-recipient principal)) 
@@ -546,173 +232,57 @@
     (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER)
     (ok (var-set paused new-paused))))
 
-(define-public (emergency-pause-listing (listing-id uint))
-  (begin
-    (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER)
-    (map-set listing-status
-      { listing-id: listing-id }
-      { active: false, featured: false, promoted-until-block: u0 })
-    (ok true)))
-
-(define-public (emergency-refund-escrow (listing-id uint))
-  (begin
-    (asserts! (is-eq tx-sender (var-get admin)) ERR_NOT_OWNER)
-    (match (map-get? escrows { listing-id: listing-id })
-      escrow
-        (let ((buyer (get buyer escrow))
-              (amount (get amount escrow)))
-          (begin
-            (try! (as-contract (stx-transfer? amount tx-sender buyer)))
-            (map-set escrows
-              { listing-id: listing-id }
-              (merge escrow { state: "cancelled" }))
-            (ok true)))
-      ERR_NOT_FOUND)))
-
-;; =============================================================================
-;; LISTING MANAGEMENT - UPDATES
-;; =============================================================================
-
 (define-public (update-listing-price (id uint) (new-price uint))
-  (let ((listing (unwrap! (map-get? listings { id: id }) ERR_NOT_FOUND))
-        (current-history (get history (default-to { history: (list) } 
-                                                   (map-get? price-history { listing-id: id })))))
+  (let (
+    (listing (unwrap! (map-get? listings { id: id }) ERR_NOT_FOUND))
+    (current-history (get history (default-to { history: (list) } (map-get? price-history { listing-id: id }))))
+  )
     (begin
-      (asserts! (is-eq (get seller listing) tx-sender) ERR_NOT_OWNER)
-      (asserts! (validate-price new-price) ERR_INVALID_INPUT)
-      (map-set listings { id: id } (merge listing { price: new-price }))
-      (map-set price-history 
-        { listing-id: id } 
-        { history: (unwrap! (as-max-len? 
-                             (append current-history 
-                                     { price: new-price, block-height: burn-block-height }) 
-                             u10) 
-                           (err u500)) })
-      (ok true))))
-
-(define-public (set-listing-category (listing-id uint) 
-                                     (category (string-ascii 50)) 
-                                     (tags (list 5 (string-ascii 20))))
-  (match (map-get? listings { id: listing-id })
-    listing
-      (begin
-        (asserts! (is-eq tx-sender (get seller listing)) ERR_NOT_OWNER)
-        (map-set listing-categories
-          { listing-id: listing-id }
-          { category: category, tags: tags })
-        (ok true))
-    ERR_NOT_FOUND))
-
-(define-public (set-listing-active (listing-id uint) (active bool))
-  (match (map-get? listings { id: listing-id })
-    listing
-      (begin
-        (asserts! (is-eq tx-sender (get seller listing)) ERR_NOT_OWNER)
-        (map-set listing-status
-          { listing-id: listing-id }
-          { active: active
-          , featured: (get featured (default-to { active: true, featured: false, 
-                                                  promoted-until-block: u0 } 
-                                                (map-get? listing-status { listing-id: listing-id })))
-          , promoted-until-block: (get promoted-until-block 
-                                      (default-to { active: true, featured: false, 
-                                                   promoted-until-block: u0 } 
-                                                  (map-get? listing-status { listing-id: listing-id }))) })
-        (ok true))
-    ERR_NOT_FOUND))
-
-(define-public (promote-listing (listing-id uint) (duration-blocks uint))
-  (match (map-get? listings { id: listing-id })
-    listing
-      (begin
-        (asserts! (is-eq tx-sender (get seller listing)) ERR_NOT_OWNER)
-        (let ((promotion-fee u1000))
-          (try! (stx-transfer? promotion-fee tx-sender (var-get fee-recipient))))
-        (map-set listing-status
-          { listing-id: listing-id }
-          { active: (get active (default-to { active: true, featured: false, 
-                                             promoted-until-block: u0 } 
-                                            (map-get? listing-status { listing-id: listing-id })))
-          , featured: true
-          , promoted-until-block: (+ burn-block-height duration-blocks) })
-        (ok true))
-    ERR_NOT_FOUND))
-
-;; =============================================================================
-;; READ-ONLY FUNCTIONS - LISTINGS
-;; =============================================================================
-
-(define-read-only (get-next-id)
-  (ok (var-get next-id)))
-
-(define-read-only (get-listing (id uint))
-  (match (map-get? listings { id: id })
-    listing (ok listing)
-    ERR_NOT_FOUND))
-
-(define-read-only (get-listing-with-nft (id uint))
-  (get-listing id))
+        (asserts! (is-eq (get seller listing) tx-sender) ERR_NOT_OWNER)
+        (map-set listings { id: id } (merge listing { price: new-price }))
+        (map-set price-history 
+          { listing-id: id } 
+          { history: (unwrap! (as-max-len? (append current-history { price: new-price, block-height: burn-block-height }) u10) (err u500)) })
+        (ok true))))
 
 (define-read-only (get-wishlist (user principal))
   (ok (default-to { listing-ids: (list) } (map-get? wishlists { user: user }))))
 
 (define-read-only (is-wishlisted (user principal) (listing-id uint)) 
-  (let ((current-wishlist (get listing-ids (default-to { listing-ids: (list) } 
-                                                        (map-get? wishlists { user: user }))))) 
+  (let ((current-wishlist (get listing-ids (default-to { listing-ids: (list) } (map-get? wishlists { user: user }))))) 
     (ok (is-some (index-of current-wishlist listing-id)))))
 
 (define-read-only (get-price-history (listing-id uint))
   (ok (default-to { history: (list) } (map-get? price-history { listing-id: listing-id }))))
 
 (define-read-only (get-listing-likes (listing-id uint))
-  (ok (get count (default-to { count: u0 } 
-                             (map-get? listing-likes-count { listing-id: listing-id })))))
-
-(define-read-only (get-seller-listing-count (seller principal))
-  (default-to u0 (map-get? seller-listing-count { seller: seller })))
-
-(define-read-only (get-seller-listing-id-at-index (seller principal) (index uint))
-  (map-get? seller-listings { seller: seller, index: index }))
-
-(define-read-only (get-listings-by-seller (seller principal)) 
-  (ok "Use get-seller-listing-count and get-seller-listing-id-at-index to iterate"))
-
-;; =============================================================================
-;; WISHLIST SYSTEM
-;; =============================================================================
+  (ok (get count (default-to { count: u0 } (map-get? listing-likes-count { listing-id: listing-id })))))
 
 (define-private (filter-id (id uint))
   (not (is-eq id (var-get remove-id-iter))))
 
+(define-data-var remove-id-iter uint u0)
+
 (define-public (toggle-wishlist (listing-id uint))
-  (let ((current-wishlist (default-to (list) 
-                                      (get listing-ids (map-get? wishlists { user: tx-sender })))))
+  (let (
+    (current-wishlist (default-to (list) (get listing-ids (map-get? wishlists { user: tx-sender }))))
+  )
     (if (is-some (index-of current-wishlist listing-id))
       (begin
         (var-set remove-id-iter listing-id)
-        (map-set wishlists { user: tx-sender } 
-                 { listing-ids: (filter filter-id current-wishlist) })
-        (let ((current-likes (get count (default-to { count: u0 } 
-                                                    (map-get? listing-likes-count 
-                                                             { listing-id: listing-id })))))
-          (map-set listing-likes-count { listing-id: listing-id } 
-                   { count: (if (> current-likes u0) (- current-likes u1) u0) }))
+        (map-set wishlists { user: tx-sender } { listing-ids: (filter filter-id current-wishlist) })
+        ;; Decrement like count
+        (let ((current-likes (get count (default-to { count: u0 } (map-get? listing-likes-count { listing-id: listing-id })))))
+           (map-set listing-likes-count { listing-id: listing-id } { count: (if (> current-likes u0) (- current-likes u1) u0) }))
         (ok false))
       (begin
-        (map-set wishlists { user: tx-sender } 
-                 { listing-ids: (unwrap! (as-max-len? (append current-wishlist listing-id) u100) 
-                                        (err u500)) })
-        (let ((current-likes (get count (default-to { count: u0 } 
-                                                    (map-get? listing-likes-count 
-                                                             { listing-id: listing-id })))))
-          (map-set listing-likes-count { listing-id: listing-id } 
-                   { count: (+ current-likes u1) }))
+        (map-set wishlists { user: tx-sender } { listing-ids: (unwrap! (as-max-len? (append current-wishlist listing-id) u100) (err u500)) })
+        ;; Increment like count
+        (let ((current-likes (get count (default-to { count: u0 } (map-get? listing-likes-count { listing-id: listing-id })))))
+           (map-set listing-likes-count { listing-id: listing-id } { count: (+ current-likes u1) }))
         (ok true)))))
 
-;; =============================================================================
-;; DATA MAPS - AUCTIONS & BUNDLES
-;; =============================================================================
-
+;; Auction System
 (define-map auctions
   { id: uint }
   { seller: principal
@@ -723,57 +293,18 @@
   , end-block: uint
   , highest-bid: uint
   , highest-bidder: (optional principal)
-  , state: (string-ascii 20)
+  , state: (string-ascii 20) ;; "active", "ended", "cancelled"
   })
 
-(define-map bundles
-  { id: uint }
-  { listing-ids: (list 10 uint)
-  , discount-bips: uint
-  , creator: principal
-  , created-at-block: uint
-  })
-
-(define-map bundles-v2
-  { id: uint }
-  { listing-ids: (list 10 uint)
-  , discount-bips: uint
-  , creator: principal
-  , created-at-block: uint
-  , expires-at: (optional uint)
-  , total-value: uint
-  , discounted-price: uint
-  })
-
-(define-map packs
-  { id: uint }
-  { listing-ids: (list 20 uint)
-  , price: uint
-  , curator: principal
-  , created-at-block: uint
-  })
-
-(define-map packs-v2
-  { id: uint }
-  { listing-ids: (list 20 uint)
-  , price: uint
-  , curator: principal
-  , curator-fee-bips: uint
-  , created-at-block: uint
-  , expires-at: (optional uint)
-  , purchases: uint
-  , active: bool
-  })
-
-(define-public (create-auction (nft-contract principal) (token-id uint) (start-price uint) (reserve-price uint) (duration uint))
+(define-public (create-auction (nft-trait <sip009-nft-trait>) (token-id uint) (start-price uint) (reserve-price uint) (duration uint))
   (let ((id (var-get next-auction-id)))
     (begin
-      ;; Note: NFT transfer would require dynamic contract-call which is not supported
-      ;; This function is kept for interface compatibility but NFT transfer is disabled
+      ;; Transfer NFT to contract
+      (try! (contract-call? nft-trait transfer token-id tx-sender (as-contract tx-sender)))
       (map-set auctions
         { id: id }
         { seller: tx-sender
-        , nft-contract: nft-contract
+        , nft-contract: (contract-of nft-trait)
         , token-id: token-id
         , start-price: start-price
         , reserve-price: reserve-price
@@ -783,7 +314,6 @@
         , state: "active" })
       (var-set next-auction-id (+ id u1))
       (ok id))))
-
 
 (define-public (place-bid (auction-id uint) (amount uint))
   (match (map-get? auctions { id: auction-id })
@@ -800,8 +330,8 @@
           (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
           
           ;; Refund previous bidder
-          (if (is-some current-bidder)
-            (try! (as-contract (stx-transfer? current-bid tx-sender (unwrap-panic current-bidder))))
+          (match current-bidder
+            prev-bidder (try! (as-contract (stx-transfer? current-bid tx-sender prev-bidder)))
             true)
             
           (map-set auctions
@@ -810,7 +340,7 @@
           (ok true)))
     ERR_NOT_FOUND))
 
-(define-public (end-auction (auction-id uint) (nft-contract-param principal))
+(define-public (end-auction (auction-id uint) (nft-trait <sip009-nft-trait>))
   (match (map-get? auctions { id: auction-id })
     auction
       (begin
@@ -821,8 +351,8 @@
                       (and (is-eq tx-sender (get seller auction)) (is-eq (get highest-bid auction) u0))) 
                   ERR_TIMEOUT_NOT_REACHED)
         
-        ;; Verify contract matches
-        (asserts! (is-eq nft-contract-param (get nft-contract auction)) ERR_INVALID_LISTING)
+        ;; Verify trait matches
+        (asserts! (is-eq (contract-of nft-trait) (get nft-contract auction)) ERR_INVALID_LISTING)
 
         (let ((winner (get highest-bidder auction))
               (price (get highest-bid auction))
@@ -833,8 +363,9 @@
                buyer 
                  (if (>= price (get reserve-price auction))
                    (begin
-                     ;; Success - Transfer STX to seller (minus fee)
-                     ;; Note: NFT transfer would require dynamic contract-call which is not supported
+                     ;; Success - Transfer NFT to winner, STX to seller (minus fee)
+                     (try! (as-contract (contract-call? nft-trait transfer token-id tx-sender buyer)))
+                     ;; Transfer STX to seller (minus fee)
                      (let ((marketplace-fee (/ (* price (var-get marketplace-fee-bips)) BPS_DENOMINATOR))
                            (seller-share (- price marketplace-fee)))
                        (try! (as-contract (stx-transfer? marketplace-fee tx-sender (var-get fee-recipient))))
@@ -843,12 +374,14 @@
                      (map-set auctions { id: auction-id } (merge auction { state: "ended" }))
                      (ok true))
                    (begin
-                     ;; Reserve not met - Refund buyer
+                     ;; Reserve not met - Return NFT to seller, refund buyer
                      (try! (as-contract (stx-transfer? price tx-sender buyer)))
+                     (try! (as-contract (contract-call? nft-trait transfer token-id tx-sender seller)))
                      (map-set auctions { id: auction-id } (merge auction { state: "ended" }))
                      (ok false)))
-               ;; No bids - Just mark as ended
+               ;; No bids - Return NFT to seller
                (begin 
+                  (try! (as-contract (contract-call? nft-trait transfer token-id tx-sender seller)))
                   (map-set auctions { id: auction-id } (merge auction { state: "ended" }))
                   (ok true)))
            )) 
@@ -889,144 +422,23 @@
     escrow (ok escrow)
     ERR_ESCROW_NOT_FOUND))
 
-;; =============================================================================
-;; REPUTATION SYSTEM
-;; =============================================================================
-
+;; Shared default reputation structure
 (define-constant DEFAULT_REPUTATION {
-  successful-txs: u0,
-  failed-txs: u0,
-  rating-sum: u0,
-  rating-count: u0
+  successful-txs: u0
+, failed-txs: u0
+, rating-sum: u0
+, rating-count: u0
 })
 
-(define-private (update-reputation (user principal) (success bool) (amount uint))
-  (let ((current-rep (default-to 
-                       { successful-txs: u0, failed-txs: u0, rating-sum: u0, 
-                         rating-count: u0, total-volume: u0 } 
-                       (map-get? reputation { user: user }))))
-    (begin
-      (map-set reputation
-        { user: user }
-        { successful-txs: (if success (+ (get successful-txs current-rep) u1) 
-                                      (get successful-txs current-rep))
-        , failed-txs: (if success (get failed-txs current-rep) 
-                                  (+ (get failed-txs current-rep) u1))
-        , rating-sum: (get rating-sum current-rep)
-        , rating-count: (get rating-count current-rep)
-        , total-volume: (if success (+ (get total-volume current-rep) amount) 
-                                    (get total-volume current-rep)) })
-      (print { event: "reputation_updated", user: user, success: success, amount: amount }))))
-
-(define-private (calculate-weighted-score (successful-txs uint) 
-                                          (failed-txs uint) 
-                                          (total-volume uint) 
-                                          (rating-sum uint) 
-                                          (rating-count uint))
-  (let ((total-txs (+ successful-txs failed-txs))
-        (success-rate (if (> total-txs u0) (/ (* successful-txs u100) total-txs) u0))
-        (avg-rating (if (> rating-count u0) (/ rating-sum rating-count) u0))
-        (volume-weight (if (< (/ total-volume u1000) u100) (/ total-volume u1000) u100)))
-    (+ (* success-rate u40) (* avg-rating u40) (* volume-weight u20))))
-
-(define-private (update-reputation-v2-fixed (principal principal) 
-                                            (success bool) 
-                                            (amount uint) 
-                                            (rating (optional uint)))
-  (let ((current-rep (default-to 
-                       { successful-txs: u0, failed-txs: u0, total-volume: u0, 
-                         rating-sum: u0, rating-count: u0, weighted-score: u0, 
-                         last-updated: u0, verification-level: u0 }
-                       (map-get? reputation-v2 { principal: principal })))
-        (new-rating-sum (match rating
-                          r (+ (get rating-sum current-rep) r)
-                          (get rating-sum current-rep)))
-        (new-rating-count (match rating
-                            r (+ (get rating-count current-rep) u1)
-                            (get rating-count current-rep))))
-    (let ((new-successful (if success (+ (get successful-txs current-rep) u1) 
-                                      (get successful-txs current-rep)))
-          (new-failed (if success (get failed-txs current-rep) 
-                                  (+ (get failed-txs current-rep) u1)))
-          (new-volume (if success (+ (get total-volume current-rep) amount) 
-                                  (get total-volume current-rep)))
-          (new-score (calculate-weighted-score new-successful new-failed 
-                                               new-volume new-rating-sum new-rating-count)))
-      (map-set reputation-v2
-        { principal: principal }
-        { successful-txs: new-successful
-        , failed-txs: new-failed
-        , total-volume: new-volume
-        , rating-sum: new-rating-sum
-        , rating-count: new-rating-count
-        , weighted-score: new-score
-        , last-updated: burn-block-height
-        , verification-level: (get verification-level current-rep) }))))
-
-;; =============================================================================
-;; READ-ONLY FUNCTIONS - REPUTATION
-;; =============================================================================
-
 (define-read-only (get-user-reputation (user principal))
-  (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, 
-                    rating-count: u0, total-volume: u0 } 
-                  (map-get? reputation { user: user }))))
+  (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } (map-get? reputation { user: user }))))
 
+;; Legacy aliases for compatibility
 (define-read-only (get-seller-reputation (seller principal))
-  (get-user-reputation seller))
+  (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } (map-get? reputation { user: seller }))))
 
 (define-read-only (get-buyer-reputation (buyer principal))
-  (get-user-reputation buyer))
-
-(define-read-only (get-reputation-v2 (principal principal))
-  (ok (default-to { successful-txs: u0, failed-txs: u0, total-volume: u0, 
-                    rating-sum: u0, rating-count: u0, weighted-score: u0, 
-                    last-updated: u0, verification-level: u0 } 
-                  (map-get? reputation-v2 { principal: principal }))))
-
-(define-read-only (get-seller-average-rating (seller principal))
-  (let ((rep (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, 
-                           rating-count: u0, total-volume: u0 } 
-                         (map-get? reputation { user: seller }))))
-    (if (> (get rating-count rep) u0)
-      (ok (/ (get rating-sum rep) (get rating-count rep)))
-      (ok u0))))
-
-(define-read-only (get-formatted-reputation (user principal)) 
-  (let ((rep (unwrap! (get-user-reputation user) (err u0))))
-    (ok { user: rep
-        , success-rate: (if (> (+ (get successful-txs rep) (get failed-txs rep)) u0)
-                           (/ (* (get successful-txs rep) u100)
-                              (+ (get successful-txs rep) (get failed-txs rep)))
-                           u0) })))
-
-;; =============================================================================
-;; RATING SYSTEM
-;; =============================================================================
-
-(define-public (rate-transaction (listing-id uint) 
-                                 (rating uint) 
-                                 (comment (optional (string-ascii 200))))
-  (begin
-    (asserts! (and (>= rating u1) (<= rating u5)) ERR_INVALID_INPUT)
-    (match (map-get? escrows { listing-id: listing-id })
-      escrow
-        (begin
-          (asserts! (or (is-eq tx-sender (get buyer escrow)) 
-                       (is-eq tx-sender (get seller escrow))) ERR_NOT_OWNER)
-          (asserts! (is-eq (get state escrow) "confirmed") ERR_INVALID_STATE)
-          (asserts! (is-none (map-get? transaction-ratings 
-                                      { listing-id: listing-id, rater: tx-sender })) 
-                   ERR_INVALID_STATE)
-          (map-set transaction-ratings
-            { listing-id: listing-id, rater: tx-sender }
-            { rating: rating, comment: comment, timestamp: burn-block-height })
-          (let ((other-party (if (is-eq tx-sender (get buyer escrow)) 
-                                (get seller escrow) 
-                                (get buyer escrow))))
-            (update-reputation-v2-fixed other-party true (get amount escrow) (some rating)))
-          (ok true))
-      ERR_ESCROW_NOT_FOUND)))
+  (ok (default-to { successful-txs: u0, failed-txs: u0, rating-sum: u0, rating-count: u0, total-volume: u0 } (map-get? reputation { user: buyer }))))
 
 ;; Verify NFT ownership using SIP-009 standard (get-owner function)
 ;; Note: In Clarity, contract-call? with variable principals works at runtime
@@ -1036,9 +448,9 @@
 
 ;; Legacy function - kept for backward compatibility (no NFT)
 
-;; =============================================================================
-;; MARKETPLACE METRICS
-;; =============================================================================
+(define-data-var total-volume uint u0)
+(define-data-var total-transactions uint u0)
+(define-data-var total-fees-collected uint u0)
 
 (define-private (update-marketplace-metrics (amount uint) (fee uint))
   (begin
@@ -1070,10 +482,7 @@
       (print { event: "listing_created", id: id, seller: tx-sender, price: price })
       (ok id))))
 
-;; =============================================================================
-;; LISTING MANAGEMENT - NFT
-;; =============================================================================
-
+;; Create listing with NFT and license terms
 (define-public (create-listing-with-nft
     (nft-contract principal)
     (token-id uint)
@@ -1082,9 +491,10 @@
     (royalty-recipient principal)
     (license-terms (string-ascii 500)))
   (begin
-    (asserts! (not (var-get paused)) ERR_PAUSED)
-    (asserts! (validate-price price) ERR_INVALID_INPUT)
-    (asserts! (validate-royalty royalty-bips) ERR_BAD_ROYALTY)
+    (asserts! (<= royalty-bips MAX_ROYALTY_BIPS) ERR_BAD_ROYALTY)
+    ;; Verify seller owns the NFT - logic temporarily removed due to trait issue
+    ;; (asserts! (verify-nft-ownership nft-contract token-id tx-sender) ERR_NOT_OWNER)
+
     (let ((id (var-get next-id)))
       (map-set listings
         { id: id }
@@ -1097,8 +507,7 @@
         , license-terms: (some license-terms) })
       (var-set next-id (+ id u1))
       (add-listing-to-seller-index tx-sender id)
-      (print { event: "listing_created_nft", id: id, seller: tx-sender, 
-               price: price, nft: nft-contract, token-id: token-id })
+      (print { event: "listing_created_nft", id: id, seller: tx-sender, price: price, nft: nft-contract, token-id: token-id })
       (ok id))))
 
 ;; Legacy immediate purchase (kept for backward compatibility)
@@ -1145,38 +554,30 @@
           (ok true)))
     ERR_NOT_FOUND))
 
-;; =============================================================================
-;; ESCROW SYSTEM - CORE
-;; =============================================================================
-
-(define-read-only (get-escrow-status (listing-id uint))
-  (match (map-get? escrows { listing-id: listing-id })
-    escrow (ok escrow)
-    ERR_ESCROW_NOT_FOUND))
-
+;; Create escrow for listing purchase
+;; Note: In Clarity, holding STX in contract requires the contract to receive funds first
+;; For now, we track escrow state. Actual STX transfer happens on release.
 (define-public (buy-listing-escrow (id uint))
   (match (map-get? listings { id: id })
     listing
       (begin
-        (try! (check-reentrancy))
-        (try! (check-rate-limit tx-sender))
+        ;; Check escrow doesn't already exist
         (asserts! (is-none (map-get? escrows { listing-id: id })) ERR_INVALID_STATE)
-        (asserts! (validate-state-consistency id) ERR_INVALID_STATE)
-        (let ((price (get price listing))
-              (seller (get seller listing))
-              (timeout-block (+ burn-block-height ESCROW_TIMEOUT_BLOCKS)))
+        (let (
+              (price (get price listing))
+             )
           (begin
+            ;; Create escrow record
+            ;; Transfer STX to contract
             (try! (stx-transfer? price tx-sender (as-contract tx-sender)))
+            
             (map-set escrows
               { listing-id: id }
               { buyer: tx-sender
-              , seller: seller
               , amount: price
               , created-at-block: burn-block-height
               , state: "pending"
-              , timeout-block: timeout-block
-              , stx-held: true })
-            (clear-reentrancy)
+              , timeout-block: (+ burn-block-height ESCROW_TIMEOUT_BLOCKS) })
             (ok true))))
     ERR_NOT_FOUND))
 
@@ -1189,10 +590,8 @@
           (begin
             (asserts! (is-eq tx-sender (get seller listing)) ERR_NOT_SELLER)
             (asserts! (is-eq (get state escrow) "pending") ERR_INVALID_STATE)
-            ;; Check attestation doesn't already exist (duplicate prevention)
+            ;; Check attestation doesn't already exist
             (asserts! (is-none (map-get? delivery-attestations { listing-id: listing-id })) ERR_ALREADY_ATTESTED)
-            ;; Validate state consistency
-            (asserts! (validate-state-consistency listing-id) ERR_INVALID_STATE)
             ;; Transfer NFT if present
             (let ((nft-contract-opt (get nft-contract listing))
                   (token-id-opt (get token-id listing))
@@ -1222,7 +621,6 @@
                 (map-set escrows
                   { listing-id: listing-id }
                   { buyer: buyer
-                  , seller: tx-sender
                   , amount: (get amount escrow)
                   , created-at-block: (get created-at-block escrow)
                   , state: "delivered"
@@ -1290,12 +688,10 @@
                 (map-set escrows
                   { listing-id: listing-id }
                   { buyer: (get buyer escrow)
-                  , seller: (get seller escrow)
                   , amount: price
                   , created-at-block: (get created-at-block escrow)
                   , state: "confirmed"
-                  , timeout-block: (get timeout-block escrow)
-                  , stx-held: false })
+                  , timeout-block: (get timeout-block escrow) })
                 ;; Record transaction history
                 (record-transaction seller listing-id tx-sender price true)
                 (record-transaction tx-sender listing-id seller price true)
@@ -1342,13 +738,15 @@
         ERR_NOT_FOUND)
     ERR_ESCROW_NOT_FOUND))
 
-;; Release escrow after timeout or manual release - ENHANCED
-(define-public (release-escrow-v2 (listing-id uint))
+;; Release escrow after timeout or manual release
+(define-public (release-escrow (listing-id uint))
   (match (map-get? escrows { listing-id: listing-id })
     escrow
       (match (map-get? listings { id: listing-id })
         listing
-          (let ((state (get state escrow)))
+          (let (
+                (state (get state escrow))
+               )
             (begin
               ;; Can release if: state is "delivered" (buyer can release after delivery)
               ;; Timeout check can be added later with proper block height function
@@ -1357,17 +755,21 @@
               (asserts! (or (is-eq tx-sender (get buyer escrow)) (is-eq tx-sender (get seller listing))) ERR_NOT_OWNER)
               ;; If delivered and timeout, release to seller (seller fulfilled, buyer didn't confirm)
               ;; If pending and timeout, refund to buyer
-              (let ((price (get amount escrow))
+              (let (
+                    (price (get amount escrow))
                     (seller (get seller listing))
                     (buyer-addr (get buyer escrow))
-                    (timeout-block (get timeout-block escrow)))
+                    (timeout-block (get timeout-block escrow))
+                   )
                 (begin
                   (if (is-eq state "delivered")
                     ;; Seller delivered, buyer didn't confirm - release to seller
-                    (let ((royalty-bips (get royalty-bips listing))
+                    (let (
+                          (royalty-bips (get royalty-bips listing))
                           (royalty-recipient (get royalty-recipient listing))
                           (royalty (/ (* price royalty-bips) BPS_DENOMINATOR))
-                          (seller-share (- price royalty)))
+                          (seller-share (- price royalty))
+                         )
                       (begin
                         ;; Transfer from contract-held escrow
                         (if (> royalty u0)
@@ -1376,7 +778,6 @@
                         (try! (as-contract (stx-transfer? seller-share tx-sender seller)))))
                     ;; Pending and timeout - refund to buyer
                     (try! (as-contract (stx-transfer? price tx-sender buyer-addr))))
-                  
                   ;; Update escrow state
                   (map-set escrows
                     { listing-id: listing-id }
@@ -1437,36 +838,27 @@
         , total-volume: (if success (+ (get total-volume current-rep) amount) (get total-volume current-rep)) })
       (print { event: "reputation_updated", user: user, success: success, amount: amount }))))
 
-;; =============================================================================
-;; TRANSACTION HISTORY
-;; =============================================================================
-
-(define-private (record-transaction (principal principal) 
-                                    (listing-id uint) 
-                                    (counterparty principal) 
-                                    (amount uint) 
-                                    (completed bool))
+;; Helper function to record transaction history
+(define-private (record-transaction (principal principal) (listing-id uint) (counterparty principal) (amount uint) (completed bool))
   (let ((current-index (default-to u0 (map-get? tx-index-counter { principal: principal }))))
     (begin
       (map-set transaction-history
-        { principal: principal, tx-index: current-index }
+        { principal: principal
+        , tx-index: current-index }
         { listing-id: listing-id
         , counterparty: counterparty
         , amount: amount
         , completed: completed
-        , timestamp: burn-block-height })
+        , timestamp: u0 })
       (map-set tx-index-counter
         { principal: principal }
         (+ current-index u1)))))
 
+;; Get transaction history for a principal (returns transaction by index)
 (define-read-only (get-transaction-history (principal principal) (index uint))
   (match (map-get? transaction-history { principal: principal, tx-index: index })
     tx (ok tx)
     ERR_NOT_FOUND))
-
-;; =============================================================================
-;; DISPUTE SYSTEM - READ-ONLY
-;; =============================================================================
 
 (define-read-only (get-dispute (dispute-id uint))
   (match (map-get? disputes { id: dispute-id })
@@ -1542,13 +934,12 @@
             ;; Update dispute stakes totals (optimized)
             (let ((buyer-stakes-new (if side (+ (get buyer-stakes dispute) amount) (get buyer-stakes dispute)))
                   (seller-stakes-new (if side (get seller-stakes dispute) (+ (get seller-stakes dispute) amount))))
-              (begin
-                (map-set disputes
-                  { id: dispute-id }
-                  (merge dispute 
-                    { buyer-stakes: buyer-stakes-new
-                    , seller-stakes: seller-stakes-new }))
-                (ok true))))))
+              (map-set disputes
+                { id: dispute-id }
+                (merge dispute 
+                  { buyer-stakes: buyer-stakes-new
+                  , seller-stakes: seller-stakes-new }))
+            (ok true)))))
     ERR_DISPUTE_NOT_FOUND))
 
 ;; Vote on a dispute (weighted by stake amount)
@@ -1703,33 +1094,23 @@
     pack (ok pack)
     ERR_PACK_NOT_FOUND))
 
-;; Create a bundle of listings with discount - OPTIMIZED
-(define-public (create-bundle-v2 (listing-ids (list 10 uint)) (discount-bips uint))
+;; Create a bundle of listings with discount
+(define-public (create-bundle (listing-ids (list 10 uint)) (discount-bips uint))
   (begin
-    ;; Security checks
-    (try! (check-reentrancy))
-    (try! (check-rate-limit tx-sender))
     ;; Validate bundle not empty
     (asserts! (> (len listing-ids) u0) ERR_BUNDLE_EMPTY)
     ;; Validate discount within limits
     (asserts! (<= discount-bips MAX_DISCOUNT_BIPS) ERR_BAD_ROYALTY)
     ;; Validate all listings exist and belong to creator
-    (let ((validation-result (validate-bundle-listings listing-ids tx-sender))
-          (total-value (calculate-bundle-total-value listing-ids))
-          (bundle-id (var-get next-bundle-id)))
+    ;; Note: In full implementation, would validate each listing
+    (let ((bundle-id (var-get next-bundle-id)))
       (begin
-        (asserts! validation-result ERR_INVALID_LISTING)
-        (asserts! (> total-value u0) ERR_INVALID_INPUT)
-        ;; Create enhanced bundle with proper pricing
-        (map-set bundles-v2
+        (map-set bundles
           { id: bundle-id }
           { listing-ids: listing-ids
           , discount-bips: discount-bips
           , creator: tx-sender
-          , created-at-block: burn-block-height
-          , expires-at: (some (+ burn-block-height u14400)) ;; 100 days expiry
-          , total-value: total-value
-          , discounted-price: (calculate-discounted-bundle-price total-value discount-bips) })
+          , created-at-block: u0 })
         (var-set next-bundle-id (+ bundle-id u1))
         (print { event: "bundle_created", id: bundle-id, creator: tx-sender, count: (len listing-ids) })
         (ok bundle-id)))))
@@ -1778,219 +1159,41 @@
 
 
 
-;; =============================================================================
-;; BUNDLE SYSTEM - HELPERS
-;; =============================================================================
-
-(define-private (validate-bundle-listings (listing-ids (list 10 uint)) (creator principal))
-  (fold validate-bundle-listing listing-ids true))
-
-(define-private (validate-bundle-listing (listing-id uint) (acc bool))
-  (if (not acc)
-    false
-    (match (map-get? listings { id: listing-id })
-      listing (is-eq (get seller listing) tx-sender)
-      false)))
-
-(define-private (calculate-bundle-total-value (listing-ids (list 10 uint)))
-  (fold sum-listing-price listing-ids u0))
-
-(define-private (sum-listing-price (listing-id uint) (acc uint))
-  (match (map-get? listings { id: listing-id })
-    listing (+ acc (get price listing))
-    acc))
-
-(define-private (calculate-discounted-bundle-price (total-value uint) (discount-bips uint))
-  (let ((discount-amount (/ (* total-value discount-bips) BPS_DENOMINATOR)))
-    (if (> total-value discount-amount)
-      (- total-value discount-amount)
-      u1)))
-
-;; Buy a bundle (purchases all listings in bundle with discount) - OPTIMIZED
-(define-public (buy-bundle-v2 (bundle-id uint))
-  (match (map-get? bundles-v2 { id: bundle-id })
-    bundle
-      (begin
-        ;; Security checks
-        (try! (check-reentrancy))
-        (try! (check-rate-limit tx-sender))
-        ;; Check bundle hasn't expired
-        (match (get expires-at bundle)
-          (some expiry) (asserts! (< burn-block-height expiry) ERR_EXPIRED_LISTING)
-          true) ;; No expiry set
-        ;; Can't buy own bundle
-        (asserts! (not (is-eq tx-sender (get creator bundle))) ERR_INVALID_INPUT)
-        (let ((listing-ids (get listing-ids bundle))
-              (discounted-price (get discounted-price bundle))
-              (creator (get creator bundle)))
-          (begin
-            ;; Transfer discounted payment to bundle creator
-            (try! (stx-transfer? discounted-price tx-sender creator))
-            ;; Process each listing purchase with proper ownership transfer
-            (try! (process-bundle-purchases-v2 listing-ids tx-sender creator))
-            ;; Delete bundle after successful purchase
-            (map-delete bundles-v2 { id: bundle-id })
-            ;; Log bundle purchase event
-            (log-event "bundle-v2-purchased" tx-sender none (some discounted-price) none)
-            (clear-reentrancy)
-            (ok true))))
-    ERR_BUNDLE_NOT_FOUND))
-
-;; Helper function to process bundle purchases with proper error handling
-(define-private (process-bundle-purchases-v2 (listing-ids (list 10 uint)) (buyer principal) (seller principal))
-  (fold process-single-bundle-purchase listing-ids (ok true)))
-
-(define-private (process-single-bundle-purchase (listing-id uint) (acc (response bool uint)))
-  (match acc
-    (ok success)
-      (if success
-        ;; Transfer listing ownership (simplified - in full implementation would handle NFTs)
-        (match (map-get? listings { id: listing-id })
-          listing
-            (begin
-              ;; Remove listing from seller (bundle creator gets payment, listings transfer to buyer)
-              (map-delete listings { id: listing-id })
-              ;; Update reputation for successful transaction
-              (update-reputation seller true)
-              (update-reputation buyer true)
-              (ok true))
-          (err ERR_NOT_FOUND)) ;; Listing not found
-        acc) ;; Previous operation failed, propagate error
-    error-result error-result)) ;; Propagate error
-
-;; Create a curated pack - OPTIMIZED
-(define-public (create-curated-pack-v2 (listing-ids (list 20 uint)) (pack-price uint) (curator-fee-bips uint))
+;; Create a curated pack
+(define-public (create-curated-pack (listing-ids (list 20 uint)) (pack-price uint) (curator principal))
   (begin
-    ;; Security checks
-    (try! (check-reentrancy))
-    (try! (check-rate-limit tx-sender))
     ;; Validate pack not empty
     (asserts! (> (len listing-ids) u0) ERR_BUNDLE_EMPTY)
-    ;; Validate pack price
-    (asserts! (validate-price pack-price) ERR_INVALID_INPUT)
-    ;; Validate curator fee within limits (max 20%)
-    (asserts! (<= curator-fee-bips u2000) ERR_BAD_ROYALTY)
-    ;; Validate all listings exist (don't need to own them for curation)
-    (let ((validation-result (validate-pack-listings listing-ids))
-          (pack-id (var-get next-pack-id)))
+    ;; Validate curator is tx-sender
+    (asserts! (is-eq tx-sender curator) ERR_NOT_OWNER)
+    ;; Validate all listings exist
+    ;; Note: In full implementation, would validate each listing
+    (let ((pack-id (var-get next-pack-id)))
       (begin
-        (asserts! validation-result ERR_INVALID_LISTING)
-        ;; Create enhanced pack
-        (map-set packs-v2
+        (map-set packs
           { id: pack-id }
           { listing-ids: listing-ids
           , price: pack-price
-          , curator: tx-sender
-          , curator-fee-bips: curator-fee-bips
-          , created-at-block: burn-block-height
-          , expires-at: (some (+ burn-block-height u14400)) ;; 100 days expiry
-          , purchases: u0
-          , active: true })
+          , curator: curator
+          , created-at-block: u0 })
         (var-set next-pack-id (+ pack-id u1))
-        ;; Log pack creation event
-        (log-event "pack-v2-created" tx-sender none (some pack-price) none)
-        (clear-reentrancy)
         (ok pack-id)))))
 
-;; Enhanced pack structure
-(define-map packs-v2
-  { id: uint }
-  { listing-ids: (list 20 uint)
-  , price: uint
-  , curator: principal
-  , curator-fee-bips: uint
-  , created-at-block: uint
-  , expires-at: (optional uint)
-  , purchases: uint
-  , active: bool
-  })
-
-;; =============================================================================
-;; BUNDLE SYSTEM - PACK HELPERS
-;; =============================================================================
-
-(define-private (validate-pack-listings (listing-ids (list 20 uint)))
-  (fold validate-pack-listing-exists listing-ids true))
-
-(define-private (validate-pack-listing-exists (listing-id uint) (acc bool))
-  (if (not acc)
-    false
-    (is-some (map-get? listings { id: listing-id }))))
-
-(define-private (process-pack-purchases-v2 (listing-ids (list 20 uint)) 
-                                           (buyer principal) 
-                                           (seller-payment uint))
-  (fold process-single-pack-purchase listing-ids (ok true)))
-
-(define-private (process-single-pack-purchase (listing-id uint) (acc (response bool uint)))
-  (match acc
-    (ok success)
-      (if success
-        (match (map-get? listings { id: listing-id })
-          listing
-            (begin
-              (map-delete listings { id: listing-id })
-              (ok true))
-          ERR_NOT_FOUND)
-        acc)
-    error-result error-result))
-
-(define-private (process-bundle-purchases-v2 (listing-ids (list 10 uint)) 
-                                             (buyer principal) 
-                                             (seller principal))
-  (fold process-single-bundle-purchase listing-ids (ok true)))
-
-(define-private (process-single-bundle-purchase (listing-id uint) (acc (response bool uint)))
-  (match acc
-    (ok success)
-      (if success
-        (match (map-get? listings { id: listing-id })
-          listing
-            (begin
-              (map-delete listings { id: listing-id })
-              (update-reputation seller true u0)
-              (update-reputation buyer true u0)
-              (ok true))
-          ERR_NOT_FOUND)
-        acc)
-    error-result error-result))
-
-;; Buy a curated pack - OPTIMIZED
-(define-public (buy-curated-pack-v2 (pack-id uint))
-  (match (map-get? packs-v2 { id: pack-id })
+;; Buy a curated pack
+(define-public (buy-curated-pack (pack-id uint))
+  (match (map-get? packs { id: pack-id })
     pack
-      (begin
-        ;; Security checks
-        (try! (check-reentrancy))
-        (try! (check-rate-limit tx-sender))
-        ;; Check pack is active and not expired
-        (asserts! (get active pack) ERR_INVALID_STATE)
-        (match (get expires-at pack)
-          (some expiry) (asserts! (< burn-block-height expiry) ERR_EXPIRED_LISTING)
-          true) ;; No expiry set
-        ;; Can't buy own pack
-        (asserts! (not (is-eq tx-sender (get curator pack))) ERR_INVALID_INPUT)
-        (let ((listing-ids (get listing-ids pack))
-              (pack-price (get price pack))
-              (curator (get curator pack))
-              (curator-fee-bips (get curator-fee-bips pack))
-              (curator-fee (/ (* pack-price curator-fee-bips) BPS_DENOMINATOR))
-              (seller-payment (- pack-price curator-fee)))
-          (begin
-            ;; Transfer curator fee
-            (if (> curator-fee u0)
-              (try! (stx-transfer? curator-fee tx-sender curator))
-              true)
-            ;; Process pack purchases with seller payments
-            (try! (process-pack-purchases-v2 listing-ids tx-sender seller-payment))
-            ;; Update pack purchase count
-            (map-set packs-v2
-              { id: pack-id }
-              (merge pack { purchases: (+ (get purchases pack) u1) }))
-            ;; Log pack purchase event
-            (log-event "pack-v2-purchased" tx-sender none (some pack-price) none)
-            (clear-reentrancy)
-            (ok true))))
+      (let ((listing-ids (get listing-ids pack))
+            (pack-price (get price pack))
+            (curator (get curator pack)))
+        (begin
+          ;; Transfer payment to curator (simplified - in full would split)
+          (try! (stx-transfer? pack-price tx-sender curator))
+          ;; Process each listing purchase
+          (process-pack-purchases listing-ids tx-sender)
+          ;; Delete pack after purchase
+          (map-delete packs { id: pack-id })
+          (ok true)))
     ERR_PACK_NOT_FOUND))
 
 ;; Helper function to process pack purchases
@@ -2248,10 +1451,9 @@
               , state: "cancelled"
               , timeout-block: (get timeout-block escrow) })
             (ok true)))
-    ERR_NOT_FOUND)))
+      ERR_ESCROW_NOT_FOUND)))
 
 ;; Analytics and metrics
-(define-data-var total-volume uint u0)
 
 
 ;; Improved helper functions
