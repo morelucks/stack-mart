@@ -1,82 +1,54 @@
-# StackMart Mainnet Deployment Guide
+# StackMart Deployment Guide
 
 ## Prerequisites
+- Node.js 18+
+- Stacks wallet with STX for deployment fees
+- Private key for deployment account
 
-1. **STX for deployment fees** - Ensure your deployer wallet has sufficient STX (~5-10 STX recommended)
-2. **Mainnet wallet** - A Stacks mainnet wallet with mnemonic phrase
-3. **Clarinet installed** - Version 2.0+
+## Environment Setup
 
-## Setup
+Create a `.env` file in the project root:
 
-1. Configure your mainnet deployer account:
-   ```bash
-   # Edit settings/Mainnet.toml and add your mnemonic
-   nano settings/Mainnet.toml
-   ```
-
-2. Verify contracts compile:
-   ```bash
-   clarinet check
-   ```
+```bash
+PRIVATE_KEY=your_private_key_here
+STACKS_NETWORK=mainnet  # or testnet
+FEE=150000  # in microSTX
+```
 
 ## Deployment Steps
 
-### Deploy contracts in order:
-
+1. Install dependencies:
 ```bash
-# 1. Deploy mock-nft (if needed for testing)
-clarinet deployments generate --mainnet
-
-# 2. Review the deployment plan
-cat deployments/default.mainnet-plan.yaml
-
-# 3. Execute deployment
-clarinet deployments apply -p deployments/default.mainnet-plan.yaml --mainnet
+npm install @stacks/transactions @stacks/network
 ```
 
-## Manual Deployment (Alternative)
-
-If you prefer manual control:
-
+2. Verify contract syntax:
 ```bash
-# Deploy stack-mart contract
-stx deploy_contract stack-mart contracts/stack-mart.clar --network mainnet
-
-# Deploy rewards-leaderboard
-stx deploy_contract rewards-leaderboard contracts/rewards-leaderboard.clar --network mainnet
-
-# Deploy sp-010 token
-stx deploy_contract sp-010 contracts/sp-010.clar --network mainnet
+clarinet check
 ```
 
-## Post-Deployment
-
-1. **Verify contracts on explorer:**
-   - https://explorer.hiro.so/
-
-2. **Initialize contracts:**
-   - Set marketplace fee recipient
-   - Configure initial parameters
-
-3. **Update frontend:**
-   - Update contract addresses in frontend/.env
-   - Set `VITE_NETWORK=mainnet`
-   - Set `VITE_CONTRACT_ADDRESS=<your_deployer_address>`
-
-## Security Checklist
-
-- [ ] Contracts audited
-- [ ] Test suite passing (npm test)
-- [ ] Testnet deployment tested
-- [ ] Fee parameters reviewed
-- [ ] Admin functions secured
-- [ ] Backup mnemonic stored securely
-- [ ] Monitor deployment transactions
-
-## Contract Addresses (Update after deployment)
-
+3. Deploy to mainnet:
+```bash
+node deploy.js
 ```
-stack-mart: <address>.stack-mart
-rewards-leaderboard: <address>.rewards-leaderboard
-sp-010: <address>.sp-010
-```
+
+## Contract Fixes Applied
+
+- Set explicit Clarity version 2 and epoch 3.0
+- Fixed type mismatches in function parameters
+- Added missing wishlists data map
+- Disabled unsupported dynamic contract calls
+- Fixed dispute stake refund logic
+- Corrected match arm return types
+
+## Security Notes
+
+- Never commit `.env` file to version control
+- `.env` is listed in `.gitignore`
+- Use separate keys for testnet and mainnet
+- Verify contract address after deployment
+
+## Deployment Cost
+
+Typical deployment fee: ~0.15 STX
+Confirmation time: ~10 minutes
