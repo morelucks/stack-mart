@@ -45,6 +45,12 @@ export const HomePage = () => {
         >
           Create Listing
         </button>
+        <button
+          onClick={() => window.location.href = '/token'}
+          className="px-4 py-2 text-purple-600 hover:bg-purple-50 rounded"
+        >
+          💰 SMT Token
+        </button>
         {isAdmin && (
           <button
             onClick={() => setActiveTab('admin')}
