@@ -112,6 +112,11 @@
   { listing-id: uint }
   { count: uint })
 
+;; Wishlist system
+(define-map wishlists
+  { user: principal }
+  { listing-ids: (list 50 uint) })
+
 ;; Delivery attestations
 (define-map delivery-attestations
   { listing-id: uint }
