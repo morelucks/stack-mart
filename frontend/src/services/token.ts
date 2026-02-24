@@ -53,3 +53,24 @@ export const getTotalSupply = async (senderAddress: string) => {
 
   return cvToJSON(result);
 };
+
+export const transferToken = async (amount: number, recipient: string, memo?: string) => {
+  const { openContractCall } = await import('@stacks/connect');
+  const { uintCV, principalCV, someCV, bufferCV, PostConditionMode } = await import('@stacks/transactions');
+  
+  const functionArgs = memo 
+    ? [uintCV(amount), principalCV(recipient), someCV(bufferCV(Buffer.from(memo)))]
+    : [uintCV(amount), principalCV(recipient), someCV(bufferCV(Buffer.from('')))];
+
+  await openContractCall({
+    network: getNetwork(),
+    contractAddress: CONTRACT_ADDRESS,
+    contractName: TOKEN_CONTRACT,
+    functionName: 'transfer',
+    functionArgs,
+    postConditionMode: PostConditionMode.Allow,
+    onFinish: (data) => {
+      console.log('Token transfer:', data.txId);
+    }
+  });
+};
