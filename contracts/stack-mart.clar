@@ -1161,7 +1161,7 @@
                    , timeout-block: (+ burn-block-height ESCROW_TIMEOUT_BLOCKS) })
                  (ok ctx)))
          ERR_NOT_FOUND)
-     error error))
+     error (err error)))
 
 
 
