@@ -12,7 +12,7 @@
 (define-constant err-invalid-amount (err u103))
 
 ;; Token configuration
-(define-constant token-name "StackMart Token")
+(define-constant token-name "StackMart Tips")
 (define-constant token-symbol "SMT")
 (define-constant token-decimals u6)
 (define-constant token-uri (some u"https://stackmart.io/token-metadata.json"))
