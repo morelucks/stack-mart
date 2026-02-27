@@ -3,6 +3,9 @@ import { Connect } from '@stacks/connect-react';
 import { HomePage } from './pages/HomePage';
 import { ListingDetail } from './pages/ListingDetail';
 import { TokenPage } from './pages/TokenPage';
+import { AuctionPage } from './pages/AuctionPage';
+import { EscrowPage } from './pages/EscrowPage';
+import { BundlesPage } from './pages/BundlesPage';
 import { Header } from './components/Header';
 import { userSession } from './utils/auth';
 
@@ -28,6 +31,9 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/listing/:id" element={<ListingDetail listingId={1} />} />
             <Route path="/token" element={<TokenPage />} />
+            <Route path="/auctions" element={<AuctionPage />} />
+            <Route path="/escrow" element={<EscrowPage />} />
+            <Route path="/bundles" element={<BundlesPage />} />
           </Routes>
         </div>
       </BrowserRouter>
